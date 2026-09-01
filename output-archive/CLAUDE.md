@@ -8,11 +8,15 @@
 sites.json                사이트별 원본 주소 · 라우트 목록 · 지도 범위
 tools/mirror.py           라우트 HTML · assets · _serverFn 응답 내려받기
 tools/tiles.py            OpenStreetMap 타일 내려받기 (지역 범위만)
-tools/inject.py           각 HTML 에 지도 어댑터 <script> 끼워넣기
+tools/inject.py           각 HTML 에 보정 <script> 끼워넣기
+tools/record.py           원본이 살아 있을 때 예시 질문 답변 녹화
+tools/patch_examples.py   화면의 추천 질문 목록을 녹화한 질문으로 교체
 sites/<슬러그>/            결과물. 원본을 뜬 것이므로 손으로 고치지 않는다
   offline/serverfn.js         서버함수 응답에 x-tss-serialized 헤더를 붙인다 (모든 사이트)
   offline/gmaps.js            구글지도 → Leaflet 어댑터 (지도 있는 사이트만)
   offline/notice.js           보관본 안내 띠 (sites.json 에 notice 가 있는 사이트만)
+  offline/recorded.js         녹화한 답변 (record.py 가 만든다)
+  offline/replay.js           녹화 답변 되돌려주기 (record 가 있는 사이트만)
 serve.py                  로컬 확인용 (헤더·라우팅을 배포와 똑같이 맞춰준다)
 ```
 
@@ -46,5 +50,10 @@ serve.py                  로컬 확인용 (헤더·라우팅을 배포와 똑�
   이 앱들의 서버함수는 전부 POST 라 미리 뜰 수 없다 — `mirror.py` 가 405 를 받고
   `_serverFn/NEEDS-INPUT.txt` 에 목록만 남긴다. 화면·데이터·이동은 전부 정상이다.
   `sites.json` 의 `notice` 로 방문자에게 안내를 띄운다.
-- POST 서버함수까지 살리려면 원본에서 요청·응답 쌍을 녹화해 되돌려주는 수밖에 없다
-  (예시 질문 몇 개만 답하는 시연 모드). 아직 하지 않았다.
+- POST 서버함수는 원본에서 녹화해 되돌려주는 수밖에 없다. `lawfind` 는 질문 10개를
+  녹화해 시연 모드로 만들었다 (`tools/record.py`). `singoai` 는 PDF 업로드가 얽혀
+  있어 아직 하지 않았다.
+- **추천 질문을 바꿀 때는 번들과 HTML 을 같이 바꾼다.** 한쪽만 바꾸면 React 가
+  하이드레이션 오류(#418)를 낸다. `tools/patch_examples.py` 가 둘 다 처리한다.
+- 브라우저에 남은 이전 대화(localStorage)가 있으면 #418 이 뜨는데 이건 원본에도
+  있는 현상이다. 판단할 때는 localStorage 를 비우고 확인한다.

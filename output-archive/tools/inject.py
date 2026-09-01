@@ -3,6 +3,7 @@
 두 가지를 넣는다.
   - offline/serverfn.js  서버함수 응답에 x-tss-serialized 헤더를 붙인다 (모든 사이트)
   - offline/gmaps.js     구글 지도 → Leaflet 어댑터 (sites.json 에 map 이 있는 사이트만)
+  - offline/replay.js    녹화한 예시 질문 답변 되돌려주기 (record 가 있는 사이트만)
 
 둘 다 앱 번들이 `window.fetch` / `window.google?.maps` 를 쓰기 전에 올라와야 하므로
 일반 <script> 로 </head> 앞에 넣는다. 모듈 스크립트로 바꾸면 defer 라 늦게 실행돼 죽는다.
@@ -32,6 +33,11 @@ def build_tag(site):
             '<link rel="stylesheet" href="/offline/leaflet.css">',
             '<script src="/offline/leaflet.js"></script>',
             '<script src="/offline/gmaps.js"></script>',
+        ]
+    if site.get('record'):
+        parts += [
+            '<script src="/offline/recorded.js"></script>',
+            '<script src="/offline/replay.js"></script>',
         ]
     if site.get('notice'):
         parts += [
