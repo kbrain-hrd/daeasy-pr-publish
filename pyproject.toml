@@ -1,0 +1,25 @@
+[project]
+name = "daeasy-pr-publish"
+version = "0.1.0"
+description = "daeasy 홍보자료: 양식 파일 접수 → /홍보발행 일괄 발행"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow>=12.3.0",
+    "python-docx>=1.2.0",
+    "pywin32>=312",
+]
+
+[project.scripts]
+prpub = "prpub.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["prpub"]
+
+[dependency-groups]
+dev = [
+    "pymupdf>=1.28.2",
+]
