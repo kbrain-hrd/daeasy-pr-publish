@@ -34,6 +34,7 @@ config.toml                                접수함·발행완료·out 경로, 
 홍보자료 발행과는 별개의 작업이고, 폴더 안에 자체 `README.md` · `CLAUDE.md` 가 있다.
 산출물 보관 관련 요청은 그 문서를 먼저 읽는다.
 
+- `/산출물 <원본주소>` 새 산출물을 보관본으로 만드는 슬래시 명령
 - `output-archive/sites.json` 대상 사이트 목록
 - `output-archive/tools/` 내려받기·타일·주입 스크립트 (표준 라이브러리만 사용)
 - `output-archive/serve.py` 로컬 확인

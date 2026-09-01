@@ -36,12 +36,16 @@ serve.py                  로컬 확인용 (헤더·라우팅을 배포와 똑�
 
 ## 새 산출물을 추가할 때
 
+**`/산출물 <원본주소>` 슬래시 명령을 쓴다.** 절차는 `.claude/commands/산출물.md` 에 있다.
+손으로 할 때의 순서는 이렇다.
+
 1. `sites.json` 에 항목 추가 (원본 주소 · 라우트 목록)
-2. `tools/mirror.py` 실행 → `serve.py` 로 띄워 클릭해본다
-3. `tools/inject.py` 로 보정 스크립트를 넣는다. 지도가 있으면 `sites.json` 에
-   `map` 범위를 먼저 정하고 `tools/tiles.py` 로 타일을 받는다.
-   `offline/` 폴더(serverfn.js·leaflet·gmaps.js)는 기존 사이트에서 복사해 쓴다.
-4. 라우트 목록은 원본 HTML 의 `"/xxx"` 패턴이나 사이드바 링크에서 찾는다
+   라우트는 원본 HTML 의 `"/xxx"` 패턴이나 사이드바 링크에서 찾는다
+2. `tools/mirror.py` → `tools/strip_lovable.py` → `tools/inject.py`
+3. `serve.py` 로 띄워 **모든 화면을 실제로 눌러본다.** 첫 화면만 보고 판단하지 않는다
+4. 지도가 있으면 `sites.json` 에 `map` 범위를 정하고 `tools/tiles.py`, 다시 `inject.py`
+5. AI 기능을 살리려면 `record` 를 정하고 `tools/record.py` → `tools/patch_examples.py`
+   `offline/` 폴더(serverfn.js·leaflet·gmaps.js·replay.js)는 기존 사이트에서 복사해 쓴다
 
 ## 알아둘 것
 
