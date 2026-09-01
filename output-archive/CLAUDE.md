@@ -11,6 +11,8 @@ tools/tiles.py            OpenStreetMap 타일 내려받기 (지역 범위만)
 tools/inject.py           각 HTML 에 보정 <script> 끼워넣기
 tools/record.py           원본이 살아 있을 때 예시 질문 답변 녹화
 tools/patch_examples.py   화면의 추천 질문 목록을 녹화한 질문으로 교체
+tools/strip_lovable.py    lovable 배지·추적 스크립트 제거, 미리보기 이미지 내려받기
+docs/                     보고용 확인 문서 (화면 캡처를 한 파일에 담은 단독 html)
 sites/<슬러그>/            결과물. 원본을 뜬 것이므로 손으로 고치지 않는다
   offline/serverfn.js         서버함수 응답에 x-tss-serialized 헤더를 붙인다 (모든 사이트)
   offline/gmaps.js            구글지도 → Leaflet 어댑터 (지도 있는 사이트만)
@@ -57,3 +59,7 @@ serve.py                  로컬 확인용 (헤더·라우팅을 배포와 똑�
   하이드레이션 오류(#418)를 낸다. `tools/patch_examples.py` 가 둘 다 처리한다.
 - 브라우저에 남은 이전 대화(localStorage)가 있으면 #418 이 뜨는데 이건 원본에도
   있는 현상이다. 판단할 때는 localStorage 를 비우고 확인한다.
+- **화면이 이상하면 브라우저 캐시부터 의심한다.** 파일을 고쳤는데 그대로면
+  `?v=2` 를 붙여 다시 불러 확인한다. 배지 제거 확인 때 이걸로 헷갈렸다.
+- `singoai` 완료함 아래 "AI 처리 트렌드 분석" 차트는 **원본도 비어 있다.**
+  축과 각주만 있고 그래프가 없다. 보관 과정에서 깨진 것이 아니니 고치려 들지 않는다.

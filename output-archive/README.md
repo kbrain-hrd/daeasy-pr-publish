@@ -74,6 +74,13 @@ lovable 앱은 정적 SPA 가 아니라 **TanStack Start 서버 앱**입니다.
 (708장 · 19MB · z13~16). 구 밖으로는 지도가 나가지 않지만, 영등포구 대시보드라
 나갈 일이 없습니다. 화면에 출처를 표기했습니다.
 
+## lovable 흔적 제거
+
+정식 게시용이므로 원본 제작 도구의 흔적은 `tools/strip_lovable.py` 로 걷어냅니다 —
+화면 오른쪽 아래 "Edit with Lovable" 배지, 분석용 `~flock.js`, 그리고 링크 미리보기
+이미지가 가리키던 lovable 이미지 서버(내려받아 `offline/preview.png` 로 함께 보관).
+바깥으로 나가는 요청을 없앤다는 보관 취지에도 맞습니다.
+
 ## 쓰는 법
 
 저장소 루트에서 실행합니다. 표준 라이브러리만 쓰므로 따로 설치할 것이 없습니다.
@@ -84,7 +91,13 @@ uv run python output-archive/tools/tiles.py  ydp-insight-hub   # 지도 타일 (
 uv run python output-archive/tools/inject.py ydp-insight-hub   # 보정 스크립트 끼워넣기
 
 uv run python output-archive/serve.py ydp-insight-hub          # http://127.0.0.1:8800
+
+uv run python output-archive/tools/strip_lovable.py ydp-insight-hub   # lovable 흔적 제거
+uv run python output-archive/tools/record.py lawfind                  # 예시 질문 답변 녹화
+uv run python output-archive/tools/patch_examples.py lawfind          # 추천 질문 목록 교체
 ```
+
+`docs/` 에 화면 확인 결과를 한 파일에 담은 단독 html 이 있습니다. 보고용으로 그대로 쓸 수 있습니다.
 
 대상 사이트·라우트 목록·지도 범위는 `sites.json` 에 있습니다.
 
