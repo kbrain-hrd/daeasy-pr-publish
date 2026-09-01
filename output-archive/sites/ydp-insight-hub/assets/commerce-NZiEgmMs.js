@@ -1,0 +1,1 @@
+import{u as e}from"./link-DbAbIj9B.js";import{t}from"./ComingSoon-BpmVIOCH.js";var n=e(),r=()=>(0,n.jsx)(t,{title:`상권 활력 모니터링`});export{r as component};

@@ -1,0 +1,22 @@
+{
+  "ydp-insight-hub": {
+    "title": "종합 취약지역 스코어링 — 영등포구 데이터 분석 플랫폼",
+    "origin": "https://ydp-insight-hub.lovable.app",
+    "course": "AI 노코드 데이터 의사결정",
+    "captured": "2026-09-01",
+    "routes": [
+      "population",
+      "infrastructure",
+      "commerce",
+      "real-estate",
+      "policy-simulation",
+      "settings",
+      "support"
+    ],
+    "map": {
+      "note": "영등포구 경계에 여유를 둔 범위. gmaps-shim.js 의 BOUNDS 와 같은 값이어야 한다.",
+      "bounds": [126.8560, 37.4700, 126.9740, 37.5650],
+      "zoom": [13, 16]
+    }
+  }
+}

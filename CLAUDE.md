@@ -25,3 +25,15 @@ config.toml                                접수함·발행완료·out 경로, 
 - `.hwp` 파싱은 한글 COM 으로 hwpx 변환을 거친다 — 한글이 설치된 PC 에서만 된다. `.hwpx`/`.docx` 는 어디서나 된다.
 - `daeasy_repo` 가 비어 있으면 `/홍보발행` 은 `out/` 생성까지만 하고 멈춘다.
 - 접수함 안의 파일은 팀들이 넣은 원본이다. `done` 으로 옮기는 것 외에 수정·삭제하지 않는다.
+
+---
+
+# 교육산출물 보관 (`output-archive/`)
+
+데이지 홈페이지 교육산출물의 lovable 프로토타입을 외부 의존 없는 정적 파일로 떠서 보관한다.
+홍보자료 발행과는 별개의 작업이고, 폴더 안에 자체 `README.md` · `CLAUDE.md` 가 있다.
+산출물 보관 관련 요청은 그 문서를 먼저 읽는다.
+
+- `output-archive/sites.json` 대상 사이트 목록
+- `output-archive/tools/` 내려받기·타일·주입 스크립트 (표준 라이브러리만 사용)
+- `output-archive/serve.py` 로컬 확인

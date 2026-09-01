@@ -1,0 +1,1 @@
+import{u as e}from"./link-DbAbIj9B.js";import{t}from"./ComingSoon-BpmVIOCH.js";var n=e(),r=()=>(0,n.jsx)(t,{title:`고객 지원`,description:`고객 지원 페이지는 준비 중입니다.`});export{r as component};
