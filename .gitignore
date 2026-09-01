@@ -5,3 +5,6 @@ out/
 !접수함/.gitkeep
 발행완료/
 docs/preview/
+
+.naver-profile/
+.naver-session.json

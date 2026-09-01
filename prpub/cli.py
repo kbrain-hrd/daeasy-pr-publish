@@ -100,6 +100,21 @@ def cmd_done(args: argparse.Namespace) -> None:
         print(f"이동: {name} → {dest_root.relative_to(ROOT)}/")
 
 
+def cmd_naver_login(args) -> None:
+    from prpub.naver import login
+
+    login()
+
+
+def cmd_naver(args) -> None:
+    from prpub.naver import write
+
+    d = ROOT / "out" / args.folder
+    if not (d / "naver.md").exists():
+        raise SystemExit(f"{d.name}/naver.md 가 없습니다.")
+    write(d, publish=args.publish)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="prpub", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -113,6 +128,11 @@ def main() -> None:
     s = sub.add_parser("done")
     s.add_argument("folders", nargs="+")
     s.set_defaults(fn=cmd_done)
+    sub.add_parser("naver-login", help="네이버 로그인 창을 띄워 세션을 저장한다").set_defaults(fn=cmd_naver_login)
+    s = sub.add_parser("naver", help="out/<폴더>/naver.md 를 네이버 블로그에 쓴다")
+    s.add_argument("folder")
+    s.add_argument("--publish", action="store_true", help="발행까지 한다 (없으면 발행 직전에서 멈춤)")
+    s.set_defaults(fn=cmd_naver)
     args = ap.parse_args()
     args.fn(args)
 

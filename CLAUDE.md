@@ -19,12 +19,16 @@ config.toml                                접수함·발행완료·out 경로, 
 - `uv run prpub scan` — 접수함 검증
 - `uv run prpub build [폴더명...]` — 패키지 생성
 - `uv run prpub done <폴더명...>` — 발행완료로 이동
+- `uv run prpub naver-login` — 네이버 로그인 창을 띄워 세션 저장 (최초 1회)
+- `uv run prpub naver <폴더명> [--publish]` — 네이버 블로그에 글 작성 (`--publish` 없으면 발행 직전 정지)
 
 ## 규칙
 - 항목을 바꾸려면 `prpub/schema.py` 의 `FIELDS` 만 고치고 `uv run prpub template` 로 양식을 다시 뽑는다. 양식 표의 왼쪽 열 라벨이 파싱 키다.
 - `.hwp` 파싱은 한글 COM 으로 hwpx 변환을 거친다 — 한글이 설치된 PC 에서만 된다. `.hwpx`/`.docx` 는 어디서나 된다.
 - `daeasy_repo` 가 비어 있으면 `/홍보발행` 은 `out/` 생성까지만 하고 멈춘다.
 - 접수함 안의 파일은 팀들이 넣은 원본이다. `done` 으로 옮기는 것 외에 수정·삭제하지 않는다.
+- 네이버는 2020년에 글쓰기 API 를 닫아 브라우저 자동화 외에 방법이 없다. 로그인 세션은 `.naver-session.json` 에 두고 저장소에 올리지 않는다.
+- 스마트에디터 화면이 바뀌면 `prpub/naver.py` 의 `SEL` 만 고치면 된다.
 
 ---
 
