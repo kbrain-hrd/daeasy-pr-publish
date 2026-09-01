@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>보관본 동작 확인</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 :root {
   --ground:      #f2f6f5;
@@ -60,7 +59,7 @@
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--ground); color: var(--ink);
-  font: 400 16px/1.65 "IBM Plex Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  font: 400 16px/1.7 "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased; word-break: keep-all;
 }
 .wrap { max-width: 1060px; margin: 0 auto; padding: 56px 24px 88px; }
@@ -73,8 +72,8 @@ h3 { font-size: 15.5px; font-weight: 600; }
 p { margin: 0; }
 
 .eyebrow {
-  font: 500 12px/1 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+  font: 600 12.5px/1.5 "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  letter-spacing: .02em; color: var(--accent);
 }
 .lede { color: var(--ink-2); max-width: 64ch; font-size: 17px; }
 header.top { display: flex; flex-direction: column; gap: 15px; margin-bottom: 40px; }
@@ -89,7 +88,7 @@ header.top { display: flex; flex-direction: column; gap: 15px; margin-bottom: 40
 .live ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .live li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 14px; }
 .live code {
-  font: 500 13px/1.5 "IBM Plex Mono", ui-monospace, monospace;
+  font: 500 13px/1.5 Consolas, "D2Coding", ui-monospace, monospace;
   background: var(--surface-2); padding: 2px 7px; border-radius: 4px; color: var(--ink);
 }
 .live .who { color: var(--ink-3); }
@@ -98,8 +97,8 @@ section.group { margin-bottom: 52px; display: flex; flex-direction: column; gap:
 .grouphead { display: flex; flex-direction: column; gap: 8px; }
 .badges { display: flex; gap: 7px; flex-wrap: wrap; }
 .badge {
-  font: 600 11px/1 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .06em; padding: 6px 9px; border-radius: 4px;
+  font: 600 12px/1.4 "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  padding: 6px 10px; border-radius: 4px;
 }
 .badge.ok   { background: var(--ok-soft);   color: var(--ok); }
 .badge.warn { background: var(--warn-soft); color: var(--warn); }
