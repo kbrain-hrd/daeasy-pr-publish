@@ -15,8 +15,37 @@
     ],
     "map": {
       "note": "영등포구 경계에 여유를 둔 범위. gmaps-shim.js 의 BOUNDS 와 같은 값이어야 한다.",
-      "bounds": [126.8560, 37.4700, 126.9740, 37.5650],
-      "zoom": [13, 16]
+      "bounds": [
+        126.856,
+        37.47,
+        126.974,
+        37.565
+      ],
+      "zoom": [
+        13,
+        16
+      ]
     }
+  },
+  "singoai": {
+    "title": "국민신문고 AI 민원 비서",
+    "origin": "https://singoai.lovable.app",
+    "course": "AI 서비스 융합 기획",
+    "captured": "2026-09-01",
+    "routes": [
+      "completed"
+    ],
+    "notice": "이 화면은 교육산출물 보관본입니다. 원본 화면과 데이터는 그대로지만, PDF 업로드와 AI 답변 생성은 원본에서만 동작합니다."
+  },
+  "lawfind": {
+    "title": "Juris Lexicon — 법률 채팅",
+    "origin": "https://lawfind.lovable.app",
+    "course": "AI 서비스 융합 기획",
+    "captured": "2026-09-01",
+    "routes": [
+      "drafting",
+      "settings"
+    ],
+    "notice": "이 화면은 교육산출물 보관본입니다. 원본 화면은 그대로지만, AI 법률 답변 생성은 원본에서만 동작합니다."
   }
 }

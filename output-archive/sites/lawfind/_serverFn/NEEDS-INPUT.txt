@@ -1,0 +1,4 @@
+입력을 받아야 동작하는 서버함수. 보관본에서는 응답하지 않는다.
+
+295be2948012911a9e3d315c52334d8465e8590cb037f5ba75075d8dccf1d37d
+3bbf0daffa7becbe3d26ef979cde8b18ad2ace503b53d03e31e8a5f4b60de97d

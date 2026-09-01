@@ -57,16 +57,33 @@ def main(slug):
     for asset in sorted(set(re.findall(r'/assets/[A-Za-z0-9._-]+\.js', joined))):
         bundles += open(os.path.join(out, asset.lstrip('/')), encoding='utf-8', errors='ignore').read()
 
+    # 화면을 열면 데이터를 돌려주는 함수만 미리 뜰 수 있다.
+    # 사용자 입력을 받아야 하는 함수(민원 답변 생성, 법률 질의 등)는 POST 라
+    # 405 가 난다. 이런 함수는 보관본에서 동작하지 않는다 — 목록으로 남겨둔다.
     fn_dir = os.path.join(out, '_serverFn')
     os.makedirs(fn_dir, exist_ok=True)
+    saved, needs_input = [], []
     for fid in sorted(set(re.findall(r'\b[a-f0-9]{64}\b', bundles))):
-        body = get(host + '/_serverFn/' + fid, {
-            'x-tsr-serverFn': 'true',
-            'accept': 'application/x-tss-framed, application/x-ndjson, application/json',
-            'referer': host + '/',
-        })
+        try:
+            body = get(host + '/_serverFn/' + fid, {
+                'x-tsr-serverFn': 'true',
+                'accept': 'application/x-tss-framed, application/x-ndjson, application/json',
+                'referer': host + '/',
+            })
+        except Exception as err:
+            needs_input.append(fid)
+            print('서버   %s… 미보관 (%s)' % (fid[:12], err))
+            continue
         open(os.path.join(fn_dir, fid), 'wb').write(body)
+        saved.append(fid)
         print('서버   %s… %6d bytes' % (fid[:12], len(body)))
+
+    print('\n서버함수 %d개 중 %d개 보관, %d개는 입력이 필요해 미보관' %
+          (len(saved) + len(needs_input), len(saved), len(needs_input)))
+    if needs_input:
+        open(os.path.join(out, '_serverFn', 'NEEDS-INPUT.txt'), 'w', encoding='utf-8').write(
+            '입력을 받아야 동작하는 서버함수. 보관본에서는 응답하지 않는다.\n\n' +
+            '\n'.join(needs_input) + '\n')
 
 
 if __name__ == '__main__':

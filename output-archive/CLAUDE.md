@@ -12,6 +12,7 @@ tools/inject.py           각 HTML 에 지도 어댑터 <script> 끼워넣기
 sites/<슬러그>/            결과물. 원본을 뜬 것이므로 손으로 고치지 않는다
   offline/serverfn.js         서버함수 응답에 x-tss-serialized 헤더를 붙인다 (모든 사이트)
   offline/gmaps.js            구글지도 → Leaflet 어댑터 (지도 있는 사이트만)
+  offline/notice.js           보관본 안내 띠 (sites.json 에 notice 가 있는 사이트만)
 serve.py                  로컬 확인용 (헤더·라우팅을 배포와 똑같이 맞춰준다)
 ```
 
@@ -41,5 +42,9 @@ serve.py                  로컬 확인용 (헤더·라우팅을 배포와 똑�
 - 앱이 쓰는 구글 지도 API 는 `Map` · `InfoWindow` · `Polygon` · `Marker` 넷뿐이다.
   다른 산출물이 `Data` 레이어나 `DirectionsService` 를 쓰면 어댑터를 늘려야 한다.
 - 행정동 경계(GeoJSON)는 원본 번들 안에 이미 들어 있었다. 따로 구할 필요 없다.
-- LLM 을 부르는 산출물(`singoai`, `lawfind`)은 이 방식이 그대로 통하지 않는다.
-  미리 뜬 응답만 재생되고 새 입력은 안 될 가능성이 크다. 실제로 떠서 확인할 것.
+- **LLM 을 부르는 산출물(`singoai`·`lawfind`)은 AI 기능이 죽는다 (확인함).**
+  이 앱들의 서버함수는 전부 POST 라 미리 뜰 수 없다 — `mirror.py` 가 405 를 받고
+  `_serverFn/NEEDS-INPUT.txt` 에 목록만 남긴다. 화면·데이터·이동은 전부 정상이다.
+  `sites.json` 의 `notice` 로 방문자에게 안내를 띄운다.
+- POST 서버함수까지 살리려면 원본에서 요청·응답 쌍을 녹화해 되돌려주는 수밖에 없다
+  (예시 질문 몇 개만 답하는 시연 모드). 아직 하지 않았다.

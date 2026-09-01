@@ -25,13 +25,18 @@ BEGIN = '<!--offline-->'
 END = '<!--/offline-->'
 
 
-def build_tag(has_map):
+def build_tag(site):
     parts = ['<script src="/offline/serverfn.js"></script>']
-    if has_map:
+    if 'map' in site:
         parts += [
             '<link rel="stylesheet" href="/offline/leaflet.css">',
             '<script src="/offline/leaflet.js"></script>',
             '<script src="/offline/gmaps.js"></script>',
+        ]
+    if site.get('notice'):
+        parts += [
+            '<script>window.__ARCHIVE_NOTICE__=%s;</script>' % json.dumps(site['notice'], ensure_ascii=False),
+            '<script src="/offline/notice.js"></script>',
         ]
     return BEGIN + ''.join(parts) + END
 
@@ -39,7 +44,7 @@ def build_tag(has_map):
 def main(slug):
     site = CONFIG[slug]
     root = os.path.join(HERE, '..', 'sites', slug)
-    tag = build_tag('map' in site)
+    tag = build_tag(site)
 
     targets = sorted(glob.glob(os.path.join(root, 'index.html')) +
                      glob.glob(os.path.join(root, '*', 'index.html')))
