@@ -62,20 +62,20 @@ body {
   font: 400 16px/1.7 "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased; word-break: keep-all;
 }
-.wrap { max-width: 1060px; margin: 0 auto; padding: 56px 24px 88px; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 56px 24px 88px; }
 @media (max-width: 640px) { .wrap { padding: 36px 18px 60px; } }
 
 h1, h2, h3 { margin: 0; text-wrap: balance; letter-spacing: -.02em; }
 h1 { font-size: clamp(28px, 4.2vw, 38px); font-weight: 700; line-height: 1.24; }
 h2 { font-size: clamp(19px, 2.4vw, 23px); font-weight: 600; }
 h3 { font-size: 15.5px; font-weight: 600; }
-p { margin: 0; }
+p { margin: 0; text-wrap: pretty; }
 
 .eyebrow {
   font: 600 12.5px/1.5 "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   letter-spacing: .02em; color: var(--accent);
 }
-.lede { color: var(--ink-2); max-width: 64ch; font-size: 17px; }
+.lede { color: var(--ink-2); max-width: 78ch; font-size: 17px; }
 header.top { display: flex; flex-direction: column; gap: 15px; margin-bottom: 40px; }
 
 .live {
@@ -102,7 +102,7 @@ section.group { margin-bottom: 52px; display: flex; flex-direction: column; gap:
 }
 .badge.ok   { background: var(--ok-soft);   color: var(--ok); }
 .badge.warn { background: var(--warn-soft); color: var(--warn); }
-.grouphead p { font-size: 14.5px; color: var(--ink-2); max-width: 66ch; }
+.grouphead p { font-size: 14.5px; color: var(--ink-2); max-width: 80ch; }
 
 figure {
   margin: 0; background: var(--surface); border: 1px solid var(--line);
@@ -118,7 +118,7 @@ figcaption .cap b { color: var(--ink); font-weight: 600; }
 
 footer.note {
   margin-top: 12px; padding-top: 22px; border-top: 1px solid var(--line);
-  font-size: 13.5px; color: var(--ink-3); max-width: 68ch;
+  font-size: 13.5px; color: var(--ink-3); max-width: 80ch;
   display: flex; flex-direction: column; gap: 9px;
 }
 a { color: var(--accent); }
