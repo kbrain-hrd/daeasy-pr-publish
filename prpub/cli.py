@@ -36,7 +36,7 @@ def _print_entries(entries: list[Entry]) -> None:
         mark = "✅" if e.ok else "❌"
         print(f"{mark} {name}")
         if e.headline:
-            print(f"   {e.headline}  [{e.data.get('category', '')}]")
+            print(f"   {e.headline}")
         print(f"   양식: {Path(e.form_file).name if e.form_file else '-'} · 사진 {len(e.photos)} · 자료 {len(e.attachments)}")
         for err in e.errors:
             print(f"   ✗ {err}")

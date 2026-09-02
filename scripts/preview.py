@@ -86,6 +86,7 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
     lines = md.strip().split("\n")
     title = lines[0].lstrip("# ").strip()
     out, toc, img_i = [], [], 0
+    table_open = [False]  # 표가 열려 있는지 (여러 줄에 걸쳐 만든다)
     quote_re = re.compile(r'^"(.+)"$')
     for ln in lines[1:]:
         ln = ln.strip()
@@ -111,6 +112,31 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
                 f'<h2 id="{sid}" class="scroll-mt-24 mt-12 text-[22px] font-extrabold tracking-[-0.01em] text-ink">{html.escape(h)}</h2>'
             )
             continue
+        if ln.startswith("|") and ln.endswith("|"):
+            cells = [c.strip() for c in ln.strip("|").split("|")]
+            if all(set(c) <= set("-: ") for c in cells):  # |---|---| 구분줄
+                continue
+            head = not table_open[0]
+            if head:
+                out.append(
+                    '<div class="mt-10 overflow-x-auto"><table class="w-full border-collapse text-[15px]">'
+                )
+                table_open[0] = True
+            tag = "th" if head else "td"
+            cls = (
+                'class="border-b border-zinc-200 px-3 py-2.5 text-left font-semibold text-zinc-500 text-[13px]"'
+                if head
+                else 'class="border-b border-zinc-100 px-3 py-2.5 text-left text-zinc-700"'
+            )
+            row = "".join(
+                f"<{tag} {cls}>" + re.sub(r"\*\*(.+?)\*\*", r'<strong class="text-ink">\1</strong>', html.escape(c)) + f"</{tag}>"
+                for c in cells
+            )
+            out.append(f"<tr>{row}</tr>")
+            continue
+        if table_open[0]:
+            out.append("</table></div>")
+            table_open[0] = False
         if ln.startswith("::수치 "):
             out.append(stat_card(ln[len("::수치 "):].rstrip(":").split("|")))
             continue
@@ -139,6 +165,8 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
             continue
         t = re.sub(r"\*\*(.+?)\*\*", r'<strong class="text-ink">\1</strong>', html.escape(ln))
         out.append(f'<p class="mt-6 text-[17px] leading-[1.9] text-zinc-700">{t}</p>')
+    if table_open[0]:
+        out.append("</table></div>")
     return title, out, toc
 
 

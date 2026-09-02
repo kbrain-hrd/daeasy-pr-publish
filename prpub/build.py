@@ -14,13 +14,10 @@ from PIL import Image, ImageOps
 from .schema import FIELDS, SECTIONS, Entry
 
 MAX_W = 1600
-_CAT_SLUG = {
-    "교육후기": "cases",
-    "인사이트": "insights",
-    "뉴스·보도자료": "news",
-    "교육 산출물": "outputs",
-    "기타": "etc",
-}
+
+# 게시 위치는 양식에서 받지 않는다. 우리가 정하는 것이라 기본값을 둔다.
+# 다른 곳에 올릴 건은 /홍보발행 단계에서 바꾼다.
+DEFAULT_SECTION = "cases"
 
 
 def slugify(e: Entry) -> str:
@@ -46,7 +43,6 @@ def _resize_copy(src: Path, dst: Path) -> None:
 def _brief_md(e: Entry, images: list[str], files: list[str]) -> str:
     d = e.data
     lines = ["# 홍보자료 등록 내용", ""]
-    lines.append(f"- 게시 위치: {d['category']}")
     for key, (title, _) in SECTIONS.items():
         block = []
         started = False
@@ -92,8 +88,8 @@ def build_entry(e: Entry, out_root: Path) -> Path:
 
     meta = {
         "slug": slug,
-        "section": _CAT_SLUG.get(d["category"], "etc"),
-        "date": d.get("publish_at") or e.date_from or date.today().isoformat(),
+        "section": DEFAULT_SECTION,
+        "date": e.date_from or date.today().isoformat(),
         "date_from": e.date_from,
         **d,
         "images": images,

@@ -7,7 +7,6 @@ from .parse import parse_form
 from .schema import (
     ATTACH_DIR,
     ATTACH_EXT,
-    BY_KEY,
     FIELDS,
     FORM_EXT,
     PHOTO_DIR,
@@ -15,7 +14,6 @@ from .schema import (
     Entry,
 )
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DATES_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:\s*~\s*(\d{4}-\d{2}-\d{2}))?$")
 
 
@@ -31,11 +29,6 @@ def _validate(e: Entry) -> None:
     for f in FIELDS:
         if f.required and not d.get(f.key, "").strip():
             e.errors.append(f"항목 비어 있음: {f.label}")
-    for key in ("category",):
-        f = BY_KEY[key]
-        v = d.get(key, "").strip()
-        if v and v not in f.choices:
-            e.errors.append(f"{f.label} 값이 목록에 없음: '{v}' (가능: {' / '.join(f.choices)})")
     dates = d.get("dates", "").strip()
     if dates:
         m = _DATES_RE.match(dates)
@@ -43,13 +36,10 @@ def _validate(e: Entry) -> None:
             e.errors.append(f"교육 일자 형식 오류: '{dates}' (YYYY-MM-DD 또는 YYYY-MM-DD ~ YYYY-MM-DD)")
         elif m.group(2) and m.group(2) < m.group(1):
             e.errors.append("교육 종료일이 시작일보다 앞섭니다")
-    pub = d.get("publish_at", "").strip()
-    if pub and not _DATE_RE.match(pub):
-        e.errors.append(f"게시 희망일 형식 오류: '{pub}' (YYYY-MM-DD)")
     if not e.photos and not e.attachments:
         e.errors.append(f"'{PHOTO_DIR}' 또는 '{ATTACH_DIR}' 폴더에 파일이 하나도 없음")
-    if not d.get("quotes", "").strip() and not d.get("highlight", "").strip():
-        e.warnings.append("참가자가 한 말·특별했던 점이 모두 비어 있음 — 사실 나열 위주의 글이 됨")
+    if not d.get("highlight", "").strip():
+        e.warnings.append("이 과정의 주요 포인트가 비어 있음 — 수치 나열 위주의 글이 됨")
 
 
 def scan_entry(folder: Path) -> Entry:

@@ -1,7 +1,11 @@
 """양식 항목 정의. 양식 파일(docx/hwpx/hwp)의 표 항목명과 1:1로 대응한다.
 
-글(제목·본문)은 LLM 이 작성한다. 등록자에게는 사실과 에피소드만 받는다.
+글(제목·본문)은 LLM 이 작성한다. 등록자에게는 사실과 어필 포인트만 받는다.
 사진 설명·대표 사진·관련 링크는 양식에서 받지 않고 /홍보발행 에서 LLM 이 정한다.
+
+게시 위치·게시 희망일은 받지 않는다 — 우리가 직접 정하면 되는 것이라 물을 이유가 없다.
+대신 희망 헤드라인·해시태그를 받는다. 담당자가 "이 글로 뭘 말하고 싶은지" 한 번
+생각해보게 하는 것이 목적이라 필수는 아니다. 비면 LLM 이 정한다.
 """
 
 import re
@@ -20,47 +24,84 @@ class Field:
 
 
 CATEGORIES = ("교육후기", "인사이트", "뉴스·보도자료", "교육 산출물", "기타")
-COURSES = (
-    "AI챔피언 그린",
-    "AI챔피언 블루",
-    "AI 리터러시",
-    "데이터 리터러시",
-    "생성형 AI 활용 업무 효율화",
-    "AI 서비스 융합 기획",
-    "기타",
-)
 
 PHOTO_DIR = "사진"
 ATTACH_DIR = "자료"
 
 # (구분 제목 "번호 이름", 설명) — 각 구분의 첫 항목 key 에 매핑
 SECTIONS: dict[str, tuple[str, str]] = {
-    "course": ("01 기본 정보", ""),
+    "course_name": ("01 기본 정보", ""),
     "topics": ("02 교육 내용", ""),
-    "quotes": ("03 참여자 반응", ""),
-    "category": ("04 게시 정보", ""),
-    "submitter": ("05 등록자", ""),
+    "satisfaction": ("03 교육 만족도", ""),
+    "headline": ("04 게시 방향", ""),
 }
 
 FIELDS: tuple[Field, ...] = (
     # 01 기본 정보
-    Field("course", "교육과정", choices=COURSES, hint="목록에 없으면 과정명을 직접 기재"),
-    Field("org", "교육 기관", required=True, hint="예) 부산시, 농촌진흥청"),
-    Field("dates", "교육 일자", required=True, hint="예) 2026-08-25 ~ 2026-08-27  (1일 교육은 날짜 하나)", half=True),
-    Field("participants", "참여 인원·대상", required=True, hint="예) 32명, 주무관·데이터 담당자", half=True),
+    Field(
+        "course_name",
+        "교육명",
+        required=True,
+        hint="이번 교육을 부르는 이름. 예) 부산시 공무원 AI 역량강화 교육",
+        half=True,
+    ),
+    Field(
+        "course",
+        "교육과정",
+        required=True,
+        hint="우리 과정 기준으로 어떤 과정인지. 예) AI 챔피언 그린, 데이터 리터러시",
+        half=True,
+    ),
+    Field("org", "교육기관", required=True, hint="예) 부산시, 농촌진흥청. 공모로 여러 기관이 모인 과정이면 '공모 선발'"),
+    Field("dates", "교육 일자", required=True, hint="예) 2026-07-21 ~ 2026-08-25  (1일 교육은 날짜 하나)", half=True),
+    Field("round", "회차", hint="예) 3회차, 상반기 2기", half=True),
+    Field("participants", "참여 인원·대상", required=True, hint="예) 109명 선발, 공공기관 주무관"),
     # 02 교육 내용
-    Field("topics", "다룬 주제", required=True, hint="2~3개. 예) 챗GPT 민원 답변 초안, 엑셀 데이터 정리"),
-    Field("outputs", "실습 결과물", hint="예) 민원 분류 대시보드 6개"),
-    Field("highlight", "특별했던 점", multiline=True, hint="예) 부서별 실제 데이터로 실습, 현장 발표회. 만족도·합격률 등 수치가 있으면 함께"),
-    # 03 참여자 반응
-    Field("quotes", "참가자가 한 말 (선택)", multiline=True, hint='1~2개, 발언 그대로. 예) "내일 업무에 바로 적용하겠다"'),
-    # 04 게시 정보
-    Field("category", "게시 위치", required=True, choices=CATEGORIES, half=True),
-    Field("publish_at", "게시 희망일", hint="예) 2026-09-05", half=True),
-    Field("key_message", "강조할 점 (선택)", hint='예) "공공기관 최초 자체 데이터 실습 사례"'),
-    # 05 등록자
-    Field("submitter", "등록자", required=True, hint="이름 / 팀. 예) 이예진 / 사업4팀"),
+    Field(
+        "topics",
+        "핵심내용",
+        required=True,
+        multiline=True,
+        hint="다룬 주제를 3~5개로 나누고, 각각 무엇을 했는지 한두 줄씩 붙여주세요. "
+        "제목만 나열하면 글에 쓸 내용이 없습니다.",
+    ),
+    Field(
+        "process",
+        "과정 내용",
+        multiline=True,
+        hint="어떤 순서로 진행했는지, 각 단계에서 무엇을 했는지. "
+        "예) 사전 온라인 3일(개념 학습) → 집합수업 4회(부서 데이터 실습) → 셀프스터디 2일(과제) → 인증평가",
+    ),
+    Field("outputs", "실습 결과물", hint="예) 부서별 민원 분류 대시보드 6개"),
+    Field(
+        "highlight",
+        "이 과정의 주요 포인트",
+        multiline=True,
+        hint="다른 교육과의 차별화. 현장에서 인상 깊었던 장면이 있으면 함께. "
+        "예) 샘플 데이터가 아니라 참여자가 실제로 쓰는 부서 데이터로 실습했습니다",
+    ),
+    # 03 교육 만족도
+    Field(
+        "satisfaction",
+        "교육 만족도",
+        required=True,
+        hint="10점 만점 기준으로 적어주세요. 예) 9.0 / 10점 (106명 응답)",
+    ),
+    # 04 게시 방향
+    Field(
+        "headline",
+        "게시글 헤드라인",
+        required=True,
+        hint="이 글의 제목을 뭐라고 뽑고 싶으신가요. 문장이 아니어도 됩니다",
+    ),
+    Field(
+        "hashtags",
+        "해시태그",
+        required=True,
+        hint="어떤 태그를 걸고 싶으신가요. 예) #AI챔피언 #공공데이터 #디지털전환",
+    ),
 )
+
 
 BY_LABEL: dict[str, Field] = {f.label: f for f in FIELDS}
 BY_KEY: dict[str, Field] = {f.key: f for f in FIELDS}
