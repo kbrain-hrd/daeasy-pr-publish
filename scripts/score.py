@@ -168,6 +168,29 @@ def style_score(body: str) -> tuple[dict, list[str]]:
     }, notes
 
 
+def duplicates(body: str) -> list[str]:
+    """글자 그대로 되풀이된 문단을 찾는다.
+
+    AI 글의 대표 결함이 언어 중복이라는 것이 문헌에서 확인됐다 (Ma 외 2023).
+    사람이 눈으로 훑으면 멀리 떨어진 두 문단이 같다는 것을 놓치기 쉽다.
+    루브릭 3절 6번(군더더기 없음)을 매길 때 이 결과를 먼저 본다.
+    """
+    paras = []
+    for p in body_text(body).split("\n"):
+        t = re.sub(r"\s+", " ", p).strip()
+        if len(t) >= 25:  # 짧은 줄은 맺음 블록·라벨이라 뺀다
+            paras.append(t)
+
+    found, seen = [], {}
+    for i, p in enumerate(paras, start=1):
+        key = re.sub(r"[^가-힣A-Za-z0-9]", "", p)
+        if key in seen:
+            found.append(f"{seen[key]}번째와 {i}번째 문단이 같다: \"{p[:34]}…\"")
+        else:
+            seen[key] = i
+    return found
+
+
 def blocking(slug_dir: Path, meta: dict, body: str) -> list[str]:
     """루브릭 2절 차단 검사. 걸리면 발행하지 않는다."""
     fails = []
@@ -235,6 +258,11 @@ def report(slug_dir: Path) -> None:
             print(f"검색 노출: {s:.1f} / 5.0")
             for x in notes:
                 print("  -", x)
+
+        dups = duplicates(body)
+        print("중복 문단:", "없음" if not dups else f"{len(dups)}건")
+        for x in dups:
+            print("  -", x)
 
         st, snotes = style_score(body)
         print("문체 지표:", " · ".join(f"{k} {v}" for k, v in st.items()))
