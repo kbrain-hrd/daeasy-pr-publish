@@ -8,3 +8,6 @@ docs/preview/
 
 .naver-profile/
 .naver-session.json
+
+# 검색 API 키. 저장소에 올리지 않는다.
+.secrets.toml

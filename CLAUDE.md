@@ -10,8 +10,11 @@ templates/홍보자료_양식.{hwp,docx}        배포용 양식 (uv run prpub t
 발행완료/<YYYY-MM>/                        발행 끝난 폴더 이동처
 out/<slug>/                                brief.md(등록 내용 정리) · meta.json · images/ · files/ · photos.md · post.md(LLM 작성)
 prpub/                                     schema(항목) · template · parse(docx/hwpx/hwp) · scan(검증) · build · cli
+scripts/                                   search_kr(한국 웹 검색) · make_chart · preview · style_check
 .claude/commands/홍보발행.md               슬래시 명령 절차
+.claude/agents/                            정보수집 → 글검수(1차) → 발행검수(2차)
 config.toml                                접수함·발행완료·out 경로, daeasy 저장소 경로
+.secrets.toml                              검색 API 키. 저장소에 올라가지 않는다
 ```
 
 ## 명령
@@ -28,6 +31,9 @@ config.toml                                접수함·발행완료·out 경로, 
 - `daeasy_repo` 가 비어 있으면 `/홍보발행` 은 `out/` 생성까지만 하고 멈춘다.
 - 접수함 안의 파일은 팀들이 넣은 원본이다. `done` 으로 옮기는 것 외에 수정·삭제하지 않는다.
 - 네이버는 2020년에 글쓰기 API 를 닫아 브라우저 자동화 외에 방법이 없다. 로그인 세션은 `.naver-session.json` 에 두고 저장소에 올리지 않는다.
+- 자료조사는 `scripts/search_kr.py` 로 한다. 정책브리핑은 키 없이 되고, 네이버·다음 검색 API 는 키가 있어야 한다. **키가 없으면 "못 돌림"이지 "없음"이 아니다** — 보고에 구분해 적는다.
+- 네이버 검색 API 는 개발자센터가 2026-07-31 신규 신청을 닫아 **NAVER API HUB(NCP)** 에서 받는다. 주소·헤더가 바뀌면 코드가 아니라 `.secrets.toml` 의 `naver_api_base` · `naver_id_header` · `naver_secret_header` 를 고친다.
+- **네이버는 긁지 않는다.** `search.naver.com`·`blog.naver.com`·`rss.blog.naver.com` 모두 `robots.txt` 가 전면 차단이고 RAG 목적 봇을 명시 금지하며 `ClaudeBot` 을 지목한다. 검색 API 가 유일한 문이다. 구글 뉴스 RSS 도 비상업 전용이라 쓰지 않는다.
 - 스마트에디터 화면이 바뀌면 `prpub/naver.py` 의 `SEL` 만 고치면 된다.
 
 ---
