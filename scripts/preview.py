@@ -279,6 +279,23 @@ def _bold(s: str) -> str:
     )
 
 
+# 한국어는 조사가 앞말에 붙는다. `**…**` 뒤에 공백을 두고 조사를 쓰면
+# 화면에서 조사가 떨어져 나와 어색해진다 (`'…사업' 을 추진하고`).
+# 원고에 공백이 있어도 붙여서 내보낸다.
+_JOSA = ("은", "는", "이", "가", "을", "를", "의", "에", "에서", "에게", "으로", "로",
+         "와", "과", "도", "만", "까지", "부터", "라고", "이라고", "이었", "였", "입니다", "이라는", "라는")
+
+
+def emphasize(text: str) -> str:
+    """`**…**` 를 <strong> 으로 바꾸고, 뒤따르는 조사의 군더더기 공백을 없앤다."""
+    out = re.sub(r"\*\*(.+?)\*\*", lambda m: f'<strong class="text-ink">{m.group(1)}</strong>', text)
+    return re.sub(
+        r"</strong>\s+(" + "|".join(_JOSA) + r")(?=[\s.,·)\]]|$)",
+        lambda m: "</strong>" + m.group(1),
+        out,
+    )
+
+
 def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[str, str]]]:
     """post.md → (제목, 본문 HTML 조각들, 목차 [(id, 소제목)])"""
     md = re.sub(r"<!--.*?-->", "", md, flags=re.S)
