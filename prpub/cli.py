@@ -115,6 +115,21 @@ def cmd_naver(args) -> None:
     write(d, publish=args.publish)
 
 
+def cmd_site_login(args) -> None:
+    from prpub.site import login
+
+    login()
+
+
+def cmd_site(args) -> None:
+    from prpub.site import publish
+
+    d = ROOT / "out" / args.folder
+    if not (d / "post.md").exists():
+        raise SystemExit(f"{d.name}/post.md 가 없습니다.")
+    publish(d, live=args.live)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="prpub", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -133,6 +148,11 @@ def main() -> None:
     s.add_argument("folder")
     s.add_argument("--publish", action="store_true", help="발행까지 한다 (없으면 발행 직전에서 멈춤)")
     s.set_defaults(fn=cmd_naver)
+    sub.add_parser("site-login", help="daeasy 어드민 로그인 창을 띄워 세션을 저장한다").set_defaults(fn=cmd_site_login)
+    s = sub.add_parser("site", help="out/<폴더>/post.md 를 daeasy 사이트 교육후기로 올린다")
+    s.add_argument("folder")
+    s.add_argument("--live", action="store_true", help="곧바로 공개한다 (없으면 draft 로 올린다)")
+    s.set_defaults(fn=cmd_site)
     args = ap.parse_args()
     args.fn(args)
 
