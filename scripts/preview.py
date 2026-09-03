@@ -360,7 +360,7 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
                 else 'style="border-bottom:1px solid #f4f4f5;padding:10px 12px;text-align:left;color:#3f3f46"'
             )
             row = "".join(
-                f"<{tag} {cls}>" + re.sub(r"\*\*(.+?)\*\*", r'<strong class="text-ink">\1</strong>', html.escape(c)) + f"</{tag}>"
+                f"<{tag} {cls}>" + emphasize(html.escape(c)) + f"</{tag}>"
                 for c in cells
             )
             out.append(f"<tr>{row}</tr>")
@@ -406,7 +406,7 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
         if ln.startswith("**") and ln.endswith("**"):
             out.append(f'<h3 style="margin:36px 0 10px;font-size:18px;font-weight:700;color:#18181b">{html.escape(ln.strip("*"))}</h3>')
             continue
-        t = re.sub(r"\*\*(.+?)\*\*", r'<strong class="text-ink">\1</strong>', html.escape(ln))
+        t = emphasize(html.escape(ln))
         out.append(f'<p style="{BODY_P}">{t}</p>')
     if card_open[0]:
         out.append("</div>")
