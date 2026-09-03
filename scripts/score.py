@@ -130,6 +130,38 @@ def search_score(meta: dict, body: str, org: str, course: str) -> tuple[float, l
     return got, notes
 
 
+def paragraph_shape(body: str) -> tuple[float, list[str]]:
+    """문단당 문장 수를 잰다.
+
+    문장마다 줄을 바꾸면 문단 여백이 계속 생겨 글이 한 줄씩 띄운 목록처럼 보인다.
+    사이트에 올라간 글들은 문단당 2~5문장이다.
+    """
+    paras = []
+    for p in body_text(body).split("\n"):
+        t = p.strip()
+        # 소제목·사진 자리·맺음 블록은 빼고 본문 문단만 센다
+        if len(t) < 25 or t.startswith(("#", "[", "-", "|", "::", "http")):
+            continue
+        paras.append(t)
+    if not paras:
+        return 0.0, []
+
+    counts = [max(1, len(sentences(p))) for p in paras]
+    avg = round(sum(counts) / len(counts), 1)
+    single = sum(1 for c in counts if c == 1)
+
+    # 기준선 — 사이트에 올라간 해커톤 글은 문단 13개에 평균 2.92문장,
+    # 한 문장짜리 문단은 1개뿐이었다. 2.2 밑으로 내려가면 끊어 쓴 것이다.
+    notes = []
+    if len(paras) >= 5 and (avg < 2.2 or single / len(paras) > 0.4):
+        notes.append(
+            f"문단당 평균 {avg}문장 — 문장마다 줄을 바꾸고 있다 "
+            f"(한 문장짜리 문단 {single}/{len(paras)}개). 2~4문장으로 묶는다. "
+            f"사이트 글은 평균 2.9문장이다"
+        )
+    return avg, notes
+
+
 def style_score(body: str) -> tuple[dict, list[str]]:
     t = body_text(body)
     ss = sentences(t)
@@ -139,6 +171,7 @@ def style_score(body: str) -> tuple[dict, list[str]]:
     ttr = len(set(sample)) / len(sample) if sample else 0
     cl = sum(t.count(c) for c in CLICHES)
     hg = sum(t.count(h) for h in HEDGES)
+    para_avg, para_notes = paragraph_shape(body)
 
     # 담론 표지 밀도 — 100문장당 몇 개인가. AI 글은 이게 적다
     disc = sum(t.count(d) for d in DISCOURSE)
@@ -150,7 +183,7 @@ def style_score(body: str) -> tuple[dict, list[str]]:
     # 담론 표지·명사화·길이 편차는 아직 기준선이 없다 — 사람이 쓴 기존 글은
     # HTML 에서 뽑아 문장 경계가 부정확했다. 값만 보여주고 판정하지 않는다.
     # 근거 없이 임계값을 정하면 그 자체가 평가 오류다 (Gehrmann et al., JAIR 2023).
-    notes = []
+    notes = list(para_notes)
     if cl:
         notes.append(f"상투어 {cl}회")
     if hg:
@@ -161,6 +194,7 @@ def style_score(body: str) -> tuple[dict, list[str]]:
         "평균길이": round(statistics.mean(lens), 1) if lens else 0,
         "길이편차": round(statistics.pstdev(lens), 1) if len(lens) > 1 else 0,
         "어휘다양성": round(ttr, 3),
+        "문단당문장": para_avg,
         "담론표지": disc_per100,
         "명사화": nom_per100,
         "상투어": cl,
@@ -222,10 +256,17 @@ def blocking(slug_dir: Path, meta: dict, body: str) -> list[str]:
                 fails.append(f"원자료에 없는 인용: \"{q[:24]}…\"")
 
     imgs = slug_dir / "images"
-    have = len(list(imgs.glob("*"))) if imgs.exists() else 0
+    # 외부 자료에서 받은 사진은 images/외부/ 에 있다. 하위 폴더까지 훑고 파일만 센다.
+    have = len([p for p in imgs.rglob("*") if p.is_file()]) if imgs.exists() else 0
     used = len(re.findall(r"^\[(?:대표)?사진\]$", body, flags=re.M)) + len(re.findall(r"!\[", body))
     if used > have:
         fails.append(f"사진 자리 {used}개인데 파일은 {have}장")
+
+    # 같은 사진을 두 번 쓰지 않는다 — 대표 사진으로 쓴 것을 본문에 또 깔면 글이 반복돼 보인다
+    used_paths = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", body)
+    dup_img = {p for p in used_paths if used_paths.count(p) > 1}
+    if dup_img:
+        fails.append(f"같은 사진을 두 번 씀: {', '.join(sorted(dup_img))}")
 
     title = meta.get("제목", "")
     if title and len(title) > 60:
@@ -268,6 +309,32 @@ def report(slug_dir: Path) -> None:
         print("문체 지표:", " · ".join(f"{k} {v}" for k, v in st.items()))
         for x in snotes:
             print("  -", x)
+
+    scorecard()
+
+
+# 이 스크립트가 세는 것은 4·5·6 의 재료일 뿐이다. 점수는 사람이 매긴다.
+# 그런데 출력에 자리가 없으면 "차단 검사 통과" 만 보고 넘어가게 된다 — 실제로 그랬다.
+# 그래서 빈 채점표를 강제로 띄운다. 비어 있는 칸이 보이면 건너뛴 것이 드러난다.
+RUBRIC = [
+    ("1 대체 불가능성", "이 회차에만 있는 사실 3개 이상=2 / 1~2개=1 / 통째로 옮겨도 성립=0", True),
+    ("2 출처 추적성", "모든 문장 출처를 짚음=2 / 못 짚는 문장 1~2개=1 / 3개 이상=0", False),
+    ("3 현장 증거", "실습 장면·반응·산출물이 문단마다=2 / 한두 곳=1 / 일반론뿐=0", False),
+    ("4 검색 노출", "위 검색 노출 4.0↑=2 / 2.5~3.5=1 / 2.0↓=0", False),
+    ("5 사람 문체", "상투어·헤징 0, 꾸민 문장 없음=2 / 한두 곳=1 / 여러 곳=0", False),
+    ("6 군더더기 없음", "뺄 문단 없음=2 / 한 곳=1 / 두 곳 이상=0", False),
+    ("7 구성", "맥락→무엇을→무엇이 남았나 이어짐=2 / 한 곳 어색=1 / 흐트러짐=0", False),
+]
+
+
+def scorecard() -> None:
+    print("\n=== 7항목 채점 (사람이 매긴다 — 코드는 못 센다) ===")
+    print("기준표: docs/홍보글-루브릭.md 3절\n")
+    for name, guide, veto in RUBRIC:
+        mark = "  ← 0점이면 합계와 무관하게 재작성" if veto else ""
+        print(f"  [ ] {name:14} __ / 2   {guide}{mark}")
+    print("\n  합계 __ / 14      12점 이상 통과 · 11점 이하는 글쓰기로 되돌린다")
+    print("  이 표를 채우지 않았으면 채점을 한 것이 아니다.")
 
 
 if __name__ == "__main__":
