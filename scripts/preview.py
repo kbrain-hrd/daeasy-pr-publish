@@ -266,17 +266,14 @@ def link_card(url: str, n: int) -> str:
 # 아예 들어 있지 않다.** 확인해 보면 `my-4`·`leading-[1.85]`·`aspect-square` 가 없다.
 # 그 클래스를 붙여봐야 아무 스타일도 안 먹어서 문단이 여백 없이 붙어 나온다 — 실제로 그랬다.
 # 그래서 우리가 만들어 넣는 요소는 CSS 빌드에 기대지 않고 style 로 직접 그린다.
-BODY_P = "margin:22px 0;font-size:16px;line-height:1.85;color:#3f3f46"
+#
+# 값은 짐작하지 않는다. 운영 글의 본문 컨테이너가 아래와 같으니 그대로 옮긴 것이다.
+#   prose prose-zinc mt-12 max-w-none text-[16px] leading-[1.85] prose-p:my-4
+#   → 글자 16px · 줄간격 1.85 · 문단 위아래 여백 16px (my-4 = 1rem)
+# 여백을 이보다 넓히면 문단 사이가 벌어져 한 줄씩 띄운 것처럼 보인다. 22px 로 뒀다가 그랬다.
+# 사이트가 값을 바꾸면 https://daeasy.co.kr/cases/<아무 글> 의 컨테이너 클래스를 다시 보고 맞춘다.
+BODY_P = "margin:16px 0;font-size:16px;line-height:1.85;color:#3f3f46"
 BODY_H2 = "margin:52px 0 14px;font-size:22px;font-weight:800;letter-spacing:-0.01em;color:#18181b;scroll-margin-top:96px"
-
-
-def _bold(s: str) -> str:
-    """**굵게** 를 <strong> 으로. 이스케이프 먼저 하고 치환한다."""
-    return re.sub(
-        r"\*\*(.+?)\*\*",
-        r'<strong style="font-weight:700;color:#18181b">\1</strong>',
-        html.escape(s),
-    )
 
 
 # 한국어는 조사가 앞말에 붙는다. `**…**` 뒤에 공백을 두고 조사를 쓰면
@@ -286,14 +283,25 @@ _JOSA = ("은", "는", "이", "가", "을", "를", "의", "에", "에서", "에�
          "와", "과", "도", "만", "까지", "부터", "라고", "이라고", "이었", "였", "입니다", "이라는", "라는")
 
 
-def emphasize(text: str) -> str:
-    """`**…**` 를 <strong> 으로 바꾸고, 뒤따르는 조사의 군더더기 공백을 없앤다."""
-    out = re.sub(r"\*\*(.+?)\*\*", lambda m: f'<strong class="text-ink">{m.group(1)}</strong>', text)
+def _bold(s: str) -> str:
+    """`**굵게**` 를 <strong> 으로 바꾸고, 뒤따르는 조사를 앞말에 붙인다.
+
+    한국어는 조사가 앞말에 붙는다. 원고에 `**'…사업'** 을` 처럼 강조를 닫고 공백을
+    둔 뒤 조사를 쓰면 화면에서 조사가 떨어져 나와 어색해진다.
+    스타일은 인라인으로 준다 — 사이트 CSS 빌드에 없는 클래스를 붙이면 아무것도 안 먹는다.
+    """
+    out = re.sub(
+        r"\*\*(.+?)\*\*",
+        lambda m: f'<strong style="font-weight:700;color:#18181b">{m.group(1)}</strong>',
+        html.escape(s),
+    )
     return re.sub(
         r"</strong>\s+(" + "|".join(_JOSA) + r")(?=[\s.,·)\]]|$)",
         lambda m: "</strong>" + m.group(1),
         out,
     )
+
+
 
 
 def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[str, str]]]:
@@ -360,7 +368,7 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
                 else 'style="border-bottom:1px solid #f4f4f5;padding:10px 12px;text-align:left;color:#3f3f46"'
             )
             row = "".join(
-                f"<{tag} {cls}>" + emphasize(html.escape(c)) + f"</{tag}>"
+                f"<{tag} {cls}>" + _bold(c) + f"</{tag}>"
                 for c in cells
             )
             out.append(f"<tr>{row}</tr>")
@@ -406,7 +414,7 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
         if ln.startswith("**") and ln.endswith("**"):
             out.append(f'<h3 style="margin:36px 0 10px;font-size:18px;font-weight:700;color:#18181b">{html.escape(ln.strip("*"))}</h3>')
             continue
-        t = emphasize(html.escape(ln))
+        t = _bold(ln)
         out.append(f'<p style="{BODY_P}">{t}</p>')
     if card_open[0]:
         out.append("</div>")
