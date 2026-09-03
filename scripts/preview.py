@@ -7,14 +7,19 @@
   uv run python scripts/preview.py <post.md> <출력이름> --date 2026.09.05 --org 부산시 --cover img/a.jpg --images img/b.png,img/c.jpg
 결과: docs/preview/<출력이름>.html  (+ Edge 가 있으면 .png 스크린샷)
 
-사전 준비(최초 1회): docs/preview/ 에 daeasy.css, logo/, fonts/PretendardVariable.woff2, 그리고 헤더·푸터 원본 daeasy.html
+껍데기(daeasy.html)와 스타일(daeasy.css)은 없으면 사이트에서 자동으로 받아 온다.
+이 둘이 없으면 클래스가 하나도 먹지 않아 화면이 통째로 무너지므로 매번 확인한다.
+logo/ 와 fonts/PretendardVariable.woff2 는 처음 한 번 넣어 두면 된다.
 """
 
 import argparse
 import html
 import io
 import re
+import shutil
 import subprocess
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,7 +30,46 @@ EDGE = [
 ]
 
 
+SITE = "https://daeasy.vercel.app"
+SHELL_SOURCE = f"{SITE}/cases/2026-ai-champion-hackathon"  # 헤더·푸터·CSS 를 떠 올 실제 글
+
+
+def ensure_shell_files() -> None:
+    """껍데기(daeasy.html)와 스타일(daeasy.css)이 없으면 사이트에서 받아 둔다.
+
+    이 둘이 없으면 클래스가 하나도 먹지 않아 화면이 통째로 무너진다.
+    실제로 파일이 사라져 썸네일이 원본 크기로 펼쳐진 적이 있어, 매번 확인한다.
+    """
+    PREVIEW.mkdir(parents=True, exist_ok=True)
+    page = PREVIEW / "daeasy.html"
+    css = PREVIEW / "daeasy.css"
+    if page.exists() and css.exists() and css.stat().st_size > 10_000:
+        return
+
+    def get(url: str) -> bytes:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.read()
+
+    try:
+        if not page.exists():
+            page.write_bytes(get(SHELL_SOURCE))
+            print("껍데기(daeasy.html)를 사이트에서 받아 왔다.")
+        if not css.exists() or css.stat().st_size <= 10_000:
+            m = re.search(r'/_next/static/chunks/[^"?]+\.css', page.read_text(encoding="utf-8", errors="ignore"))
+            if not m:
+                raise RuntimeError("daeasy.html 에서 CSS 주소를 못 찾았다")
+            css.write_bytes(get(SITE + m.group(0)))
+            print("스타일(daeasy.css)을 사이트에서 받아 왔다.")
+    except Exception as e:
+        raise SystemExit(
+            f"프리뷰 껍데기를 준비하지 못했다: {e}\n"
+            f"{SHELL_SOURCE} 을 docs/preview/daeasy.html 로, 그 안의 CSS 를 daeasy.css 로 직접 받아 둔다."
+        )
+
+
 def shell():
+    ensure_shell_files()
     src = io.open(PREVIEW / "daeasy.html", encoding="utf-8").read()
     header = re.search(r"<header.*?</header>", src, re.S).group(0)
     footer = re.search(r"<footer.*?</footer>", src, re.S).group(0)
@@ -56,13 +100,13 @@ def stat_card(cells: list[str]) -> str:
     for cell in cells:
         num, _, label = cell.strip().partition("·")
         cols.append(
-            '<div class="flex-1 px-5 py-6 text-center">'
-            f'<p class="text-[30px] font-extrabold leading-none tracking-[-0.02em] text-ink">{html.escape(num.strip())}</p>'
-            f'<p class="mt-2 text-[12.5px] text-zinc-500">{html.escape(label.strip())}</p>'
+            '<div style="flex:1;padding:24px 20px;text-align:center;border-left:1px solid #f4f4f5">'
+            f'<p style="margin:0;font-size:30px;font-weight:800;line-height:1;color:#18181b">{html.escape(num.strip())}</p>'
+            f'<p style="margin:8px 0 0;font-size:12.5px;color:#71717a">{html.escape(label.strip())}</p>'
             "</div>"
         )
     return (
-        '<div class="mt-10 flex divide-x divide-zinc-100 overflow-hidden rounded-2xl bg-zinc-50/70 ring-1 ring-zinc-100">'
+        '<div style="margin:40px 0;display:flex;overflow:hidden;border-radius:16px;background:#fafafa;border:1px solid #f4f4f5">'
         + "".join(cols)
         + "</div>"
     )
@@ -72,11 +116,166 @@ def quote_card(parts: list[str]) -> str:
     """`::인용 이건 내일 바로 써먹겠다|부산시 AI챔피언 그린 참여자::` → 인용문 카드."""
     text = parts[0].strip()
     who = parts[1].strip() if len(parts) > 1 else ""
-    src = f'<p class="mt-5 text-[13px] text-zinc-500">— {html.escape(who)}</p>' if who else ""
+    src = f'<p style="margin:20px 0 0;font-size:13px;color:#71717a">— {html.escape(who)}</p>' if who else ""
     return (
-        '<figure class="mt-10 rounded-2xl bg-zinc-50/70 px-8 py-10 ring-1 ring-zinc-100">'
-        '<p class="text-[26px] font-extrabold leading-[1.45] tracking-[-0.015em] text-ink">'
+        '<figure style="margin:40px 0;border-radius:16px;background:#fafafa;border:1px solid #f4f4f5;padding:40px 32px">'
+        '<p style="margin:0;font-size:26px;font-weight:800;line-height:1.45;color:#18181b">'
         f'&ldquo;{html.escape(text)}&rdquo;</p>{src}</figure>'
+    )
+
+
+def stage_image(path: str) -> str:
+    """사진을 docs/preview/img/ 로 복사하고 상대 경로를 돌려준다.
+
+    이미 img/ 안을 가리키거나 파일이 없으면 그대로 둔다.
+    """
+    if not path:
+        return path
+    src = Path(path)
+    if not src.is_absolute():
+        src = ROOT / path
+    if not src.is_file():
+        return path
+    dst_dir = PREVIEW / "img"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / src.name
+    if not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
+        shutil.copy2(src, dst)
+    return f"img/{src.name}"
+
+
+_OG_CACHE: dict[str, dict] = {}
+
+
+def fetch_og(url: str) -> dict:
+    """링크 카드에 쓸 og 정보를 읽어온다. 실패하면 도메인만 돌려준다.
+
+    글별 og:image 를 안 주는 사이트가 많다 — 그런 곳은 기관 로고가 온다.
+    네이버·카카오 공유 카드도 같은 값을 쓰므로 그대로 둔다.
+    """
+    if url in _OG_CACHE:
+        return _OG_CACHE[url]
+    host = re.sub(r"^www\.", "", urllib.parse.urlparse(url).netloc)
+    info = {"title": url, "desc": "", "image": "", "host": host}
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            page = r.read().decode("utf-8", "replace")
+    except Exception:
+        _OG_CACHE[url] = info
+        return info
+
+    def meta(prop: str) -> str:
+        for pat in (
+            r'<meta[^>]+(?:property|name)="' + prop + r'"[^>]+content="([^"]*)"',
+            r'<meta[^>]+content="([^"]*)"[^>]+(?:property|name)="' + prop + r'"',
+        ):
+            m = re.search(pat, page, re.I)
+            if m:
+                return html.unescape(m.group(1)).strip()
+        return ""
+
+    title = meta("og:title")
+    if not title:
+        m = re.search(r"<title>(.*?)</title>", page, re.S | re.I)
+        title = html.unescape(re.sub(r"\s+", " ", m.group(1))).strip() if m else url
+    info["title"] = re.split(r"\s*\|\s*", title)[0]
+    info["desc"] = meta("og:description")
+    # og:image 는 사이트 공용 로고인 경우가 많다. 그 글에 실제로 쓰인 첫 사진을 먼저 찾는다.
+    img = first_content_image(page, url) or meta("og:image")
+    if img:
+        info["image"] = urllib.parse.urljoin(url, img)
+    _OG_CACHE[url] = info
+    return info
+
+
+# 본문 사진이 아닌 것들 — 로고·상장·아이콘·공용 og 이미지
+_NOT_CONTENT = re.compile(r"(logo|favicon|opengraph-image|/awards/|sprite|icon)", re.I)
+
+
+def first_content_image(page: str, base: str) -> str:
+    """그 글에 실제로 쓰인 첫 번째 사진 주소를 찾는다. 없으면 빈 문자열.
+
+    Next.js 는 본문을 RSC 페이로드에 담아 보내므로 <img> 태그만 봐서는 안 된다.
+    이스케이프를 푼 뒤 이미지 확장자로 끝나는 주소를 순서대로 훑는다.
+    """
+    t = page.replace("\\u002F", "/").replace("\\/", "/").replace('\\"', '"')
+    for m in re.finditer(r'["\'(](https?://[^"\'()\s]+?|/[^"\'()\s]+?)\.(jpe?g|png|webp)\b', t):
+        u = m.group(1) + "." + m.group(2)
+        if _NOT_CONTENT.search(u):
+            continue
+        return urllib.parse.urljoin(base, u)
+    return ""
+
+
+def stage_remote(url: str, name: str) -> str:
+    """썸네일을 내려받아 docs/preview/img/ 에 두고 상대 경로를 돌려준다."""
+    if not url:
+        return ""
+    ext = Path(urllib.parse.urlparse(url).path).suffix or ".jpg"
+    dst = PREVIEW / "img" / f"{name}{ext}"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if not dst.exists():
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                dst.write_bytes(r.read())
+        except Exception:
+            return ""
+    return f"img/{dst.name}"
+
+
+def link_card(url: str, n: int) -> str:
+    """다른 교육후기로 넘어가는 작은 카드. 썸네일 + 제목 한 줄.
+
+    본문 사진만큼 커지면 글의 흐름을 끊는다. 목록처럼 작게 둔다.
+    """
+    og = fetch_og(url)
+    thumb = stage_remote(og["image"], f"ogcard-{n}")
+    # daeasy.css 는 운영 사이트에서 컴파일된 Tailwind 빌드다. 사이트가 안 쓰는 유틸리티
+    # 클래스(w-36·aspect-square·line-clamp 등)는 들어 있지 않아 적용되지 않는다.
+    # 그래서 카드는 인라인 style 로 그린다 — 어떤 CSS 빌드가 깔려도 같게 나온다.
+    fit = "contain" if _NOT_CONTENT.search(og["image"]) else "cover"
+    box = (
+        "width:150px;height:150px;flex:0 0 150px;overflow:hidden;"
+        "border-radius:10px;background:#fafafa"
+    )
+    left = (
+        f'<span style="{box};display:block">'
+        f'<img src="{thumb}" alt="" style="width:100%;height:100%;object-fit:{fit};display:block"></span>'
+        if thumb
+        else f'<span style="{box};display:block"></span>'
+    )
+    return (
+        f'<a href="{html.escape(url)}" target="_blank" rel="noopener" '
+        'style="display:flex;align-items:center;gap:14px;padding:10px;border-radius:14px;'
+        'border:1px solid #e4e4e7;text-decoration:none;color:inherit">'
+        f"{left}"
+        '<span style="min-width:0;flex:1 1 auto">'
+        '<span style="display:block;font-size:15px;font-weight:700;line-height:1.4;color:#18181b">'
+        f'{html.escape(og["title"])}</span>'
+        '<span style="display:block;margin-top:8px;font-size:12px;color:#a1a1aa">'
+        f'{html.escape(og["host"])}</span>'
+        "</span></a>"
+    )
+
+
+# 본문은 인라인 style 로 그린다.
+#
+# `daeasy.css` 는 운영 사이트에서 컴파일된 Tailwind 빌드라 **사이트가 쓰지 않는 클래스는
+# 아예 들어 있지 않다.** 확인해 보면 `my-4`·`leading-[1.85]`·`aspect-square` 가 없다.
+# 그 클래스를 붙여봐야 아무 스타일도 안 먹어서 문단이 여백 없이 붙어 나온다 — 실제로 그랬다.
+# 그래서 우리가 만들어 넣는 요소는 CSS 빌드에 기대지 않고 style 로 직접 그린다.
+BODY_P = "margin:22px 0;font-size:16px;line-height:1.85;color:#3f3f46"
+BODY_H2 = "margin:52px 0 14px;font-size:22px;font-weight:800;letter-spacing:-0.01em;color:#18181b;scroll-margin-top:96px"
+
+
+def _bold(s: str) -> str:
+    """**굵게** 를 <strong> 으로. 이스케이프 먼저 하고 치환한다."""
+    return re.sub(
+        r"\*\*(.+?)\*\*",
+        r'<strong style="font-weight:700;color:#18181b">\1</strong>',
+        html.escape(s),
     )
 
 
@@ -87,6 +286,8 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
     title = lines[0].lstrip("# ").strip()
     out, toc, img_i = [], [], 0
     table_open = [False]  # 표가 열려 있는지 (여러 줄에 걸쳐 만든다)
+    card_i = [0]   # 링크 카드 썸네일 파일 이름용 번호
+    card_open = [False]  # 링크 카드 판이 열려 있는지
     quote_re = re.compile(r'^"(.+)"$')
     for ln in lines[1:]:
         ln = ln.strip()
@@ -96,21 +297,34 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
             if img_i < len(images):
                 cap = re.match(r"!\[(.*?)\]", ln).group(1)
                 out.append(
-                    f'<figure class="mt-10"><img src="{images[img_i]}" alt="{html.escape(cap)}" class="w-full rounded-2xl ring-1 ring-zinc-100">'
-                    f'<figcaption class="mt-3 text-[13px] text-zinc-500">{html.escape(cap)}</figcaption></figure>'
+                    '<figure style="margin:40px 0">'
+                    f'<img src="{images[img_i]}" alt="{html.escape(cap)}" '
+                    'style="width:100%;display:block;border-radius:16px">'
+                    '<figcaption style="margin-top:12px;font-size:13px;line-height:1.7;color:#71717a">'
+                    f"{html.escape(cap)}</figcaption></figure>"
                 )
                 img_i += 1
+            continue
+        if ln.startswith("> "):
+            # 인용 문단. 강조 카드(::인용 …::)와 달리 본문 흐름 안에 둔다.
+            out.append(
+                '<blockquote style="margin:24px 0;padding-left:20px;border-left:2px solid #d4d4d8;'
+                'font-size:17px;line-height:1.8;color:#3f3f46">'
+                + _bold(ln[2:].strip())
+                + "</blockquote>"
+            )
             continue
         if ln.startswith("## "):
             h = ln[3:].strip()
             if h in TOC_SKIP:
-                out.append(f'<h2 class="mt-12 text-[16px] font-bold text-ink">{html.escape(h)}</h2>')
+                out.append(
+                    '<h2 style="margin:48px 0 12px;font-size:16px;font-weight:700;color:#18181b">'
+                    f"{html.escape(h)}</h2>"
+                )
                 continue
             sid = slugify(h)
             toc.append((sid, h))
-            out.append(
-                f'<h2 id="{sid}" class="scroll-mt-24 mt-12 text-[22px] font-extrabold tracking-[-0.01em] text-ink">{html.escape(h)}</h2>'
-            )
+            out.append(f'<h2 id="{sid}" style="{BODY_H2}">{html.escape(h)}</h2>')
             continue
         if ln.startswith("|") and ln.endswith("|"):
             cells = [c.strip() for c in ln.strip("|").split("|")]
@@ -119,14 +333,14 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
             head = not table_open[0]
             if head:
                 out.append(
-                    '<div class="mt-10 overflow-x-auto"><table class="w-full border-collapse text-[15px]">'
+                    '<div style="margin:40px 0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:15px">'
                 )
                 table_open[0] = True
             tag = "th" if head else "td"
             cls = (
-                'class="border-b border-zinc-200 px-3 py-2.5 text-left font-semibold text-zinc-500 text-[13px]"'
+                'style="border-bottom:1px solid #e4e4e7;padding:10px 12px;text-align:left;font-weight:600;font-size:13px;color:#71717a"'
                 if head
-                else 'class="border-b border-zinc-100 px-3 py-2.5 text-left text-zinc-700"'
+                else 'style="border-bottom:1px solid #f4f4f5;padding:10px 12px;text-align:left;color:#3f3f46"'
             )
             row = "".join(
                 f"<{tag} {cls}>" + re.sub(r"\*\*(.+?)\*\*", r'<strong class="text-ink">\1</strong>', html.escape(c)) + f"</{tag}>"
@@ -134,6 +348,9 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
             )
             out.append(f"<tr>{row}</tr>")
             continue
+        if card_open[0] and not ln.startswith("- "):
+            out.append("</div>")
+            card_open[0] = False
         if table_open[0]:
             out.append("</table></div>")
             table_open[0] = False
@@ -144,27 +361,38 @@ def body_html(md: str, images: list[str]) -> tuple[str, list[str], list[tuple[st
             out.append(quote_card(ln[len("::인용 "):].rstrip(":").split("|")))
             continue
         if ln.startswith("- "):
+            m = re.match(r"- \[(.+?)\]\((https?://\S+?)\)", ln) or re.match(r"- (https?://\S+)", ln)
+            if m:
+                # 링크 줄이 이어지면 한 판에 모아 2열로 깐다
+                if not card_open[0]:
+                    out.append('<div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">')
+                    card_open[0] = True
+                card_i[0] += 1
+                out.append(link_card(m.group(2) if m.lastindex == 2 else m.group(1), card_i[0]))
+                continue
             m = re.match(r"- \[(.+?)\]\((.+?)\)", ln)
             out.append(
                 f'<p class="mt-3 text-[15px] text-zinc-700">📎 <a class="font-semibold text-accent underline-offset-4 hover:underline" href="#">{html.escape(m.group(1) if m else ln[2:])}</a></p>'
             )
             continue
         if ln.startswith("📎"):
-            out.append(f'<p class="mt-8 text-[15px] text-zinc-700">{html.escape(ln)}</p>')
+            out.append(f'<p style="margin:28px 0 0;font-size:15px;line-height:1.8;color:#3f3f46">{html.escape(ln)}</p>')
             continue
         if ln.startswith("관련 링크:"):
-            out.append(f'<p class="mt-8 text-[14px] text-zinc-500">{html.escape(ln)}</p>')
+            out.append(f'<p style="margin:28px 0 0;font-size:14px;color:#71717a">{html.escape(ln)}</p>')
             continue
         if quote_re.match(ln):
             out.append(
-                f'<blockquote class="my-8 pl-6 text-[22px] font-bold leading-[1.5] tracking-[-0.01em] text-ink" style="border-left:4px solid #2563eb">{html.escape(ln)}</blockquote>'
+                f'<blockquote style="margin:32px 0;padding-left:24px;border-left:4px solid #2563eb;font-size:22px;font-weight:700;line-height:1.5;color:#18181b">{html.escape(ln)}</blockquote>'
             )
             continue
         if ln.startswith("**") and ln.endswith("**"):
-            out.append(f'<h3 class="mt-10 text-[18px] font-bold text-ink">{html.escape(ln.strip("*"))}</h3>')
+            out.append(f'<h3 style="margin:36px 0 10px;font-size:18px;font-weight:700;color:#18181b">{html.escape(ln.strip("*"))}</h3>')
             continue
         t = re.sub(r"\*\*(.+?)\*\*", r'<strong class="text-ink">\1</strong>', html.escape(ln))
-        out.append(f'<p class="mt-6 text-[17px] leading-[1.9] text-zinc-700">{t}</p>')
+        out.append(f'<p style="{BODY_P}">{t}</p>')
+    if card_open[0]:
+        out.append("</div>")
     if table_open[0]:
         out.append("</table></div>")
     return title, out, toc
@@ -342,12 +570,16 @@ def render(
     org: str = "",
 ) -> Path:
     header, footer = shell()
+    # 사진은 어디에 있든 docs/preview/img/ 로 복사해 상대 경로로 건다.
+    # 그대로 두면 html 이 docs/preview/ 에 있어 패키지 폴더 경로가 깨진다.
+    cover = stage_image(cover)
+    images = [stage_image(p) for p in images]
     title, body, toc = body_html(io.open(md_path, encoding="utf-8").read(), images)
 
     meta = f'<span class="ml-2 text-zinc-400">·</span><span class="ml-2 text-zinc-700">{html.escape(org)}</span>' if org else ""
     # 대표 사진이 없으면 커버 자리를 비워 둔다 (빈 회색 판을 깔지 않는다)
     cover_html = (
-        f'<div class="mt-10 overflow-hidden rounded-2xl bg-zinc-100"><img src="{cover}" alt="" class="aspect-[16/9] w-full object-cover"></div>'
+        f'<div style="margin:40px 0;overflow:hidden;border-radius:16px;background:#f4f4f5"><img src="{cover}" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block"></div>'
         if cover
         else ""
     )
@@ -409,6 +641,12 @@ if __name__ == "__main__":
     ap.add_argument("--section", default="교육후기")
     a = ap.parse_args()
     imgs = [s for s in a.images.split(",") if s]
+    # 대표 사진을 본문에 또 깔면 같은 사진이 두 번 나온다
+    if a.cover and a.cover in imgs:
+        raise SystemExit(
+            f"대표 사진을 본문에도 넣었다: {a.cover} / "
+            "--images 에서 빼거나 다른 사진을 대표로 고른다."
+        )
     out = render(Path(a.post), a.name, a.date, a.cover, imgs, a.section, a.org)
     print("html:", out)
     png = screenshot(out)
