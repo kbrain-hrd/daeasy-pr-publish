@@ -14,6 +14,7 @@
 
 import html
 import json
+from datetime import date
 import mimetypes
 import re
 from pathlib import Path
@@ -233,7 +234,8 @@ def publish(slug_dir: Path, live: bool = False) -> None:
             "summary": meta.get("summary") or _summary_of(md),
             "description": body,
             "client_name": meta.get("org") or None,
-            "conducted_at": meta.get("date") or None,
+            # 카드·목록 날짜는 교육일이 아니라 게시일 — 교육 일자는 본문에 적혀 있다
+            "conducted_at": date.today().isoformat(),
             "thumbnail_url": thumb,
             "status": "published" if live else "draft",
         }
