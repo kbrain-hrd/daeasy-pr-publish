@@ -162,6 +162,28 @@ def _title_of(md: str) -> str:
     return ""
 
 
+def _summary_of(md: str, limit: int = 200) -> str:
+    """목록 카드·메타 설명용 요약 — 본문 첫 글 문단(제목·사진·소제목·요약박스·URL 제외).
+
+    어드민에서 손으로 쓴 글은 사람이 요약을 넣지만, 파이프라인 글은 meta.json 에 요약이
+    없어 카드가 비었다. 글 첫 문단이 "언제·어디서·누가·무엇을" 이라 그대로 쓴다.
+    """
+    md = re.sub(r"<!--.*?-->", "", md, flags=re.S)
+    for block in md.split("\n\n"):
+        s = block.strip()
+        if not s or s.startswith("#") or s.startswith("::") or s.startswith("!["):
+            continue
+        lines = [ln.strip() for ln in s.split("\n") if ln.strip()]
+        if _RULE.match(s) or all(_URL.match(ln.lstrip("- ")) for ln in lines):
+            continue
+        text = re.sub(r"\*\*(.+?)\*\*", r"\1", " ".join(lines))
+        if len(text) <= limit:
+            return text
+        cut = text.rfind(". ", 0, limit)
+        return text[: cut + 1] if cut > 0 else text[: limit - 1] + "…"
+    return ""
+
+
 # ---------------------------------------------------------------- 발행
 
 
@@ -208,7 +230,7 @@ def publish(slug_dir: Path, live: bool = False) -> None:
         payload = {
             "slug": meta.get("site_slug") or slug_dir.name,
             "title": title,
-            "summary": meta.get("summary", ""),
+            "summary": meta.get("summary") or _summary_of(md),
             "description": body,
             "client_name": meta.get("org") or None,
             "conducted_at": meta.get("date") or None,
