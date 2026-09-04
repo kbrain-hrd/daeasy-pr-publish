@@ -67,8 +67,15 @@ def login(timeout_min: int = 10) -> bool:
 # ---------------------------------------------------------------- 본문 변환
 
 _QUOTE = re.compile(r"^::인용\s*(.+?)\s*::$")
+_STATS = re.compile(r"^::수치\s*(.+?)\s*::$")
 _IMG = re.compile(r"^!\[(.*?)\]\((.+?)\)$")
 _URL = re.compile(r"^https?://\S+$")
+_RULE = re.compile(r"^[─—\-_]{3,}$")
+
+
+def _link(url: str) -> str:
+    u = html.escape(url)
+    return f'<a href="{u}" target="_blank" rel="noopener">{u}</a>'
 
 
 def _inline(s: str) -> str:
@@ -80,7 +87,8 @@ def _inline(s: str) -> str:
 def to_html(md: str, upload) -> tuple[str, str | None]:
     """post.md 를 사이트용 HTML 로 옮긴다. (본문, 대표이미지 URL)
 
-    `upload(경로) -> URL` 을 받아 이미지를 올린다. 본문 첫 이미지가 대표 사진이 된다.
+    `upload(경로) -> URL` 을 받아 이미지를 올린다. 본문 첫 이미지가 대표 사진이 된다 —
+    사이트가 대표 사진을 상단에 따로 보여주므로 그 이미지는 본문에서 뺀다 (중복 노출 방지).
     """
     body: list[str] = []
     thumb: str | None = None
@@ -103,6 +111,7 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
                 continue
             if thumb is None:
                 thumb = url
+                continue
             fig = f'<figure><img src="{html.escape(url)}" alt="{html.escape(cap)}">'
             if cap:
                 fig += f"<figcaption>{_inline(cap)}</figcaption>"
@@ -118,15 +127,27 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
             body.append(q + "</blockquote>")
             continue
 
+        m = _STATS.match(s)
+        if m:
+            items = "".join(
+                f"<li>{_inline(x.strip())}</li>" for x in m.group(1).split("|") if x.strip()
+            )
+            body.append(f"<ul>{items}</ul>")
+            continue
+
+        if _RULE.match(s):
+            body.append("<hr>")
+            continue
+
         # 관련 글 목록 — `- https://…` 줄만 모여 있는 블록
         lines = [ln.strip() for ln in s.split("\n") if ln.strip()]
         if lines and all(ln.startswith("- ") and _URL.match(ln[2:]) for ln in lines):
-            items = "".join(
-                f'<li><a href="{html.escape(ln[2:])}" target="_blank" rel="noopener">'
-                f"{html.escape(ln[2:])}</a></li>"
-                for ln in lines
-            )
-            body.append(f"<ul>{items}</ul>")
+            body.append("<ul>" + "".join(f"<li>{_link(ln[2:])}</li>" for ln in lines) + "</ul>")
+            continue
+
+        # URL 만 있는 문단(줄마다 URL) — 글 쪽이 `- ` 없이 쓰는 경우도 링크로
+        if lines and all(_URL.match(ln) for ln in lines):
+            body.append("<p>" + "<br>".join(_link(ln) for ln in lines) + "</p>")
             continue
 
         body.append("<p>" + "<br>".join(_inline(ln) for ln in lines) + "</p>")
