@@ -16,6 +16,6 @@ docs/preview/
 .daeasy-profile/
 .daeasy-session.json
 
-# Supabase MCP 토큰. 자격증명이라 저장소에 올리지 않는다.
+# 혹시 만들더라도 올라가지 않도록 (자격증명이 담기는 자리)
 .env.local
 .claude/settings.local.json
