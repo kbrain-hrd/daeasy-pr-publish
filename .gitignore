@@ -9,7 +9,8 @@ docs/preview/
 .naver-profile/
 .naver-session.json
 
-# 검색 API 키. 저장소에 올리지 않는다.
+# 자격증명. 저장소에 올리지 않는다. (.env.example 이 채울 항목 안내)
+.env
 .secrets.toml
 
 .daeasy-profile/

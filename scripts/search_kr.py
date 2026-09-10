@@ -22,11 +22,13 @@
 #
 # 반면 korea.kr 과 mois.go.kr 은 `User-agent: * / Allow: /` 라 문제없다.
 
-키 넣는 법 — 환경변수 또는 프로젝트 루트 .secrets.toml (저장소에 올라가지 않는다)
+키 넣는 법 — 프로젝트 루트 .env (`.env.example` 을 복사해 채운다. 저장소에 올라가지 않는다)
 
-    naver_client_id = "..."
-    naver_client_secret = "..."
-    kakao_rest_key = "..."
+    NAVER_CLIENT_ID=...
+    NAVER_CLIENT_SECRET=...
+    KAKAO_REST_KEY=...
+
+  환경변수로 줘도 되고, 옛 .secrets.toml(소문자 키)도 계속 읽는다.
 
   카카오 키: developers.kakao.com → 앱 → REST API 키 (무료, 카드 불필요)
   네이버 키: NAVER API HUB (네이버 클라우드 플랫폼). 개발자센터는 2026-07-31 부터
@@ -56,7 +58,8 @@ from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SECRETS = ROOT / ".secrets.toml"
+SECRETS = ROOT / ".secrets.toml"   # 옛 방식. 새로 넣을 값은 .env 에 적는다
+DOTENV = ROOT / ".env"
 
 NAVER_WHERE = {"news": "뉴스", "blog": "블로그", "cafearticle": "카페", "webkr": "웹문서"}
 DEFAULT_WHERE = "news,blog,cafearticle,webkr"
@@ -81,8 +84,31 @@ def _toml(p: Path) -> dict:
     return tomllib.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
+_ENV_CACHE: dict | None = None
+
+
+def _dotenv() -> dict:
+    """프로젝트 루트 `.env` 를 읽는다 (KEY=VALUE, # 주석, 따옴표 허용).
+
+    자격증명을 한 파일에 모으기 위한 것이다. 외부 패키지를 쓰지 않는다 —
+    이 스크립트는 표준 라이브러리만으로 도는 것이 규칙이다.
+    """
+    global _ENV_CACHE
+    if _ENV_CACHE is None:
+        _ENV_CACHE = {}
+        if DOTENV.exists():
+            for line in DOTENV.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                _ENV_CACHE[k.strip()] = v.strip().strip('"').strip("'")
+    return _ENV_CACHE
+
+
 def _key(env: str, name: str, default=None):
-    return os.environ.get(env) or _toml(SECRETS).get(name, default)
+    """찾는 순서: 환경변수 → .env → .secrets.toml(옛 방식) → 기본값."""
+    return os.environ.get(env) or _dotenv().get(env) or _toml(SECRETS).get(name, default)
 
 
 def _clean(s: str) -> str:
