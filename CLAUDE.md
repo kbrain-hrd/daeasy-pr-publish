@@ -31,7 +31,7 @@ config.toml                                접수함·발행완료·out 경로, 
 - `daeasy_repo` 가 비어 있으면 `/홍보발행` 은 `out/` 생성까지만 하고 멈춘다.
 - 접수함 안의 파일은 팀들이 넣은 원본이다. `done` 으로 옮기는 것 외에 수정·삭제하지 않는다.
 - 네이버는 2020년에 글쓰기 API 를 닫아 브라우저 자동화 외에 방법이 없다. 로그인 세션은 `.naver-session.json` 에 두고 저장소에 올리지 않는다.
-- **자격증명은 `.env` 한 곳에 모은다** (`.env.example` 복사). 읽는 순서는 환경변수 → `.env` → 옛 `.secrets.toml`. **로그인 비밀번호는 넣지 않는다** — 네이버·어드민 모두 사람이 한 번 로그인한 브라우저 프로필을 재사용한다. 자동 로그인은 계정 보호조치를 부른다
+- **자격증명은 `.env` 한 곳에 모은다** (`.env.example` 복사). 읽는 순서는 환경변수 → `.env` → 옛 `.secrets.toml`. **단 Supabase MCP 토큰은 예외** — `.mcp.json` 의 `${VAR}` 는 클로드코드가 프로세스 환경변수에서만 찾으므로 `.claude/settings.local.json` 의 `env` 블록에 적는다 (`.env` 에 적으면 전달되지 않는다). **로그인 비밀번호는 넣지 않는다** — 네이버·어드민 모두 사람이 한 번 로그인한 브라우저 프로필을 재사용한다. 자동 로그인은 계정 보호조치를 부른다
 - 자료조사는 `scripts/search_kr.py` 로 한다. 정책브리핑은 키 없이 되고, 네이버·다음 검색 API 는 키가 있어야 한다. **키가 없으면 "못 돌림"이지 "없음"이 아니다** — 보고에 구분해 적는다.
 - 네이버 검색 API 는 개발자센터가 2026-07-31 신규 신청을 닫아 **NAVER API HUB(NCP)** 에서 받는다. 주소·헤더가 바뀌면 코드가 아니라 `.secrets.toml` 의 `naver_api_base` · `naver_id_header` · `naver_secret_header` 를 고친다.
 - **네이버는 긁지 않는다.** `search.naver.com`·`blog.naver.com`·`rss.blog.naver.com` 모두 `robots.txt` 가 전면 차단이고 RAG 목적 봇을 명시 금지하며 `ClaudeBot` 을 지목한다. 검색 API 가 유일한 문이다. 구글 뉴스 RSS 도 비상업 전용이라 쓰지 않는다.

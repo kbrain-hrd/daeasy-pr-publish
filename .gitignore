@@ -18,3 +18,4 @@ docs/preview/
 
 # Supabase MCP 토큰. 자격증명이라 저장소에 올리지 않는다.
 .env.local
+.claude/settings.local.json
