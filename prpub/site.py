@@ -156,6 +156,28 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
     return "".join(body), thumb
 
 
+def _edu_info_block(meta: dict) -> str:
+    """본문 맨 앞에 고정으로 넣는 교육 개요 블록 — 제목·대표사진 바로 아래 규격.
+
+    값은 meta.json(양식 파싱 결과)에서 오므로 글마다 형식이 흔들리지 않는다.
+    sanitize-html 허용 태그(ul/li/strong)만 쓴다 — style 은 어차피 지워진다.
+    """
+    rows = [
+        ("교육명", meta.get("course_name", "")),
+        ("교육기관", meta.get("org", "")),
+        ("교육 일자", meta.get("dates", "")),
+        ("교육 대상·인원", meta.get("participants", "")),
+    ]
+    items = "".join(
+        f"<li><strong>{html.escape(label)}</strong> {html.escape(' '.join(value.split()))}</li>"
+        for label, value in rows
+        if value.strip()
+    )
+    if not items:
+        return ""
+    return f'<ul class="edu-info">{items}</ul><hr>'
+
+
 def _title_of(md: str) -> str:
     for ln in md.splitlines():
         if ln.startswith("# "):
@@ -227,6 +249,7 @@ def publish(slug_dir: Path, live: bool = False) -> None:
             return url
 
         body, thumb = to_html(md, upload)
+        body = _edu_info_block(meta) + body  # 제목·대표사진 아래 고정 규격 (교육명·기관·일자·대상)
 
         payload = {
             "slug": meta.get("site_slug") or slug_dir.name,
