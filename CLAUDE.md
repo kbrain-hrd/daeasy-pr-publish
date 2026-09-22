@@ -11,8 +11,8 @@ templates/홍보자료_양식.{hwp,docx}        배포용 양식 (uv run prpub t
 out/<slug>/                                brief.md(등록 내용 정리) · meta.json · images/ · files/ · photos.md · post.md(LLM 작성)
 prpub/                                     schema(항목) · template · parse(docx/hwpx/hwp) · scan(검증) · build · cli
 scripts/                                   search_kr(한국 웹 검색) · make_chart · preview · style_check
-.claude/commands/홍보발행.md               슬래시 명령 절차
-.claude/agents/                            정보수집 → 글검수(1차) → 발행검수(2차)
+.claude/commands/홍보발행.md               슬래시 명령 절차 (비상용 수동 절차 — 정본은 daeasy/ai-service/promo 오케스트레이터)
+.claude/agents/                            정보수집 (자료 수집 + 사실확인·팩트체크. 글검수·발행검수는 2026-09-22 퇴역)
 config.toml                                접수함·발행완료·out 경로, daeasy 저장소 경로
 .env                                       검색 API 키(NAVER_*·KAKAO_*). .env.example 을 복사해 채운다. 저장소에 올라가지 않는다
 ```
