@@ -190,30 +190,63 @@ SEL = {
 HEADING_SIZE = "fs30"
 BODY_SIZE = "fs15"
 
+# UI 상태를 기다리는 기본 한계(ms). 네트워크·렌더링이 느릴 때를 고려한 값이다.
+UI_TIMEOUT_MS = 15000
+
+
+def _wait_count(pg, locator, want: int, timeout_ms: int = 5000, step_ms: int = 150) -> bool:
+    """locator 개수가 want 이상이 될 때까지 기다린다. 되면 True.
+
+    태그 칩이나 본문 이미지처럼 "몇 개가 됐는지"로 완료를 알 수 있는 곳에 쓴다.
+    정해진 시간을 세는 것보다 실제 결과를 확인하는 편이 확실하다.
+    """
+    waited = 0
+    while waited < timeout_ms:
+        if locator.count() >= want:
+            return True
+        pg.wait_for_timeout(step_ms)
+        waited += step_ms
+    return locator.count() >= want
+
 
 def _set_size(pg, fr, value: str):
+    """글자 크기를 바꾼다.
+
+    메뉴가 뜨는 데 걸리는 시간이 매번 달라, 400ms 고정 대기로는 느릴 때 클릭을 놓쳤다.
+    항목이 실제로 보일 때까지 기다린 뒤 누른다.
+    """
     fr.locator(SEL["크기버튼"]).click()
-    pg.wait_for_timeout(400)
-    fr.locator(SEL["크기옵션"].format(value)).click()
-    pg.wait_for_timeout(400)
+    opt = fr.locator(SEL["크기옵션"].format(value))
+    opt.wait_for(state="visible", timeout=5000)
+    opt.click()
+    try:
+        opt.wait_for(state="hidden", timeout=3000)
+    except Exception:
+        pg.wait_for_timeout(400)  # 메뉴가 남아 있으면 종전처럼 잠깐 기다린다
 
 
 def _fill_publish_form(pg, fr, data: dict) -> None:
     """발행 팝업을 열고 카테고리·공개범위·태그를 채운다. 발행 버튼은 누르지 않는다."""
     fr.locator(SEL["발행열기"]).click()
-    pg.wait_for_timeout(2500)
+    # 팝업이 그려지는 시간이 매번 다르다. 2.5초를 세는 대신 태그 입력창이 보일 때까지
+    # 기다린다. 팝업이 덜 뜬 상태에서 카테고리를 누르던 것을 막는다.
+    fr.locator(SEL["태그입력"]).wait_for(state="visible", timeout=UI_TIMEOUT_MS)
 
     if data["카테고리"]:
         fr.locator(SEL["카테고리버튼"]).click()
-        pg.wait_for_timeout(800)
         # 목록에서 이름이 같은 항목을 고른다 (네이버가 공백을 nbsp 로 넣어 두는 곳이 있다)
         want = data["카테고리"].replace(" ", "")
         opt = fr.locator("button, label, li").filter(has_text=data["카테고리"]).last
         try:
-            opt.click(timeout=5000)
+            # 목록이 펼쳐진 뒤에 누른다. 800ms 고정으로는 느릴 때 빈 곳을 눌렀다.
+            opt.wait_for(state="visible", timeout=5000)
+            opt.click()
         except Exception:
             fr.get_by_text(want, exact=False).last.click(timeout=5000)
-        pg.wait_for_timeout(800)
+        try:
+            opt.wait_for(state="hidden", timeout=3000)   # 목록이 닫힌 것을 확인
+        except Exception:
+            pg.wait_for_timeout(800)
 
     try:
         fr.locator(SEL["전체공개"]).check(timeout=4000)
@@ -231,8 +264,9 @@ def _fill_publish_form(pg, fr, data: dict) -> None:
                 tag.type(t, delay=30)
                 pg.wait_for_timeout(400)
                 tag.press("Enter")
-                pg.wait_for_timeout(900)
-                if chips.count() >= i:
+                # 900ms 를 세는 대신 칩이 실제로 늘었는지 확인한다. 느리게 붙을 때는
+                # 놓치고 빨리 붙을 때는 남는 시간을 그냥 기다리던 것을 없앤다.
+                if _wait_count(pg, chips, i, timeout_ms=4000):
                     break
         made = chips.count()
         if made != len(data["태그"]):
