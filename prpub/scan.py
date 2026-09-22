@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from .parse import parse_form
+from .parse import embedded_photos, parse_form
 from .schema import (
     ATTACH_DIR,
     ATTACH_EXT,
@@ -37,7 +37,10 @@ def _validate(e: Entry) -> None:
         elif m.group(2) and m.group(2) < m.group(1):
             e.errors.append("교육 종료일이 시작일보다 앞섭니다")
     if not e.photos and not e.attachments:
-        e.errors.append(f"'{PHOTO_DIR}' 또는 '{ATTACH_DIR}' 폴더에 파일이 하나도 없음")
+        if e.form_file and embedded_photos(Path(e.form_file)):
+            e.warnings.append("사진이 양식 문서에 임베드돼 있음 — build 가 자동 추출한다")
+        else:
+            e.errors.append(f"'{PHOTO_DIR}' 또는 '{ATTACH_DIR}' 폴더에 파일이 하나도 없음")
     if not d.get("highlight", "").strip():
         e.warnings.append("이 과정의 주요 포인트가 비어 있음 — 수치 나열 위주의 글이 됨")
     topics = d.get("topics", "").strip()

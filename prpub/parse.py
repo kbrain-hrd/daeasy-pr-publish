@@ -198,6 +198,40 @@ def parse_hwp(path: Path) -> dict[str, str]:
         return parse_hwpx(tmp)
 
 
+_EMBED_IMG_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+
+
+def embedded_photos(path: Path, min_px: int = 300) -> list[tuple[str, bytes]]:
+    """양식 문서(docx/hwpx)에 임베드된 사진 (이름, 바이트) 목록.
+
+    팀들이 사진을 폴더 대신 문서 안에 붙여 넣는 경우가 실제로 있다 — build 가
+    이걸 꺼내 out/images/ 에 합치고, scan 은 사진 유무 판정에 셈한다.
+    양식의 로고·장식 아이콘을 거르기 위해 짧은 변이 min_px 미만이면 뺀다.
+    .hwp 는 zip 이 아니라 미지원(빈 목록) — hwpx 로 변환돼 파싱될 때 잡힌다.
+    """
+    import io  # noqa: PLC0415
+
+    from PIL import Image  # noqa: PLC0415
+
+    prefix = {".docx": "word/media/", ".hwpx": "BinData/"}.get(path.suffix.lower())
+    if not prefix:
+        return []
+    out: list[tuple[str, bytes]] = []
+    with zipfile.ZipFile(path) as z:
+        for name in sorted(z.namelist()):
+            if not name.startswith(prefix) or Path(name).suffix.lower() not in _EMBED_IMG_EXT:
+                continue
+            data = z.read(name)
+            try:
+                with Image.open(io.BytesIO(data)) as im:
+                    if min(im.width, im.height) < min_px:
+                        continue
+            except Exception:  # noqa: BLE001 — 못 여는 그림은 사진이 아니다
+                continue
+            out.append((Path(name).name, data))
+    return out
+
+
 def parse_form(path: Path) -> dict[str, str]:
     ext = path.suffix.lower()
     if ext == ".docx":

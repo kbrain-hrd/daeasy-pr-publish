@@ -3,6 +3,8 @@
 brief.md 는 LLM 이 게시글(제목·본문)을 작성할 때 참고하는 등록 내용 정리본이다. 글은 여기서 쓰지 않는다.
 """
 
+import hashlib
+import io
 import json
 import re
 import shutil
@@ -11,6 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+from .parse import embedded_photos
 from .schema import FIELDS, SECTIONS, Entry
 
 MAX_W = 1600
@@ -32,6 +35,21 @@ def _resize_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
         return
     with Image.open(src) as im:
+        im = ImageOps.exif_transpose(im)
+        if im.width > MAX_W:
+            im = im.resize((MAX_W, round(im.height * MAX_W / im.width)), Image.LANCZOS)
+        if im.mode not in ("RGB", "RGBA"):
+            im = im.convert("RGB")
+        im.save(dst, quality=88, optimize=True)
+
+
+def _resize_bytes(data: bytes, dst: Path) -> None:
+    """임베드 이미지 바이트를 _resize_copy 와 같은 규칙으로 저장한다."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.suffix.lower() == ".gif":
+        dst.write_bytes(data)
+        return
+    with Image.open(io.BytesIO(data)) as im:
         im = ImageOps.exif_transpose(im)
         if im.width > MAX_W:
             im = im.resize((MAX_W, round(im.height * MAX_W / im.width)), Image.LANCZOS)
@@ -76,6 +94,19 @@ def build_entry(e: Entry, out_root: Path) -> Path:
         src = Path(p)
         dst = out / "images" / f"{i:02d}{src.suffix.lower()}"
         _resize_copy(src, dst)
+        images.append(f"images/{dst.name}")
+
+    # 양식 문서에 임베드된 사진 — 사진/ 폴더에 없는 것만 꺼내 뒤에 붙인다.
+    # 팀들이 사진을 폴더 대신 문서에 붙여 넣는 경우가 실제로 있다.
+    folder_hashes = {hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in e.photos}
+    idx = len(images)
+    for name, data in embedded_photos(Path(e.form_file)):
+        if hashlib.sha256(data).hexdigest() in folder_hashes:
+            continue  # 폴더에도 같은 사진을 넣은 경우
+        idx += 1
+        ext = Path(name).suffix.lower()
+        dst = out / "images" / f"{idx:02d}{'.jpg' if ext == '.jpeg' else ext}"
+        _resize_bytes(data, dst)
         images.append(f"images/{dst.name}")
 
     files = []
