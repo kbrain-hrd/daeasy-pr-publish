@@ -96,6 +96,13 @@ FIELDS: tuple[Field, ...] = (
         "예) 민원 답변 초안 생성 서비스 / 업무 자동화 프로토타입 6건 / 공공서비스 개선 아이디어 8건",
     ),
     Field(
+        "output_links",
+        "산출물 자료",
+        multiline=True,
+        hint="산출물을 확인할 수 있는 파일이나 링크를 적어 주세요. 파일은 '자료' 폴더에 함께 넣어 주세요. "
+        "예) 업무템플릿_8종.zip / https://drive.google.com/…",
+    ),
+    Field(
         "highlight",
         "이 과정의 주요 포인트",
         multiline=True,
