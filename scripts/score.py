@@ -17,6 +17,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# 썸네일 중복 판정은 thumb_dupe 가 한다. 같은 로직을 여기 복사하지 않는다.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import thumb_dupe  # noqa: E402
+
+# 연결 글 조회 결과를 건별로 캐시한다. blocking() 은 naver.md·post.md 에 한 번씩,
+# 채점 루프에서는 라운드마다 불린다. 같은 주소를 매번 받아 오면 느리고 실패도 잦다.
+_LINK_CACHE: dict[str, list[dict]] = {}
+
 CLICHES = [
     "시간을 가졌습니다", "시간이었습니다", "자리였습니다", "뜻깊은",
     "혁신적인", "성공적으로", "함께했습니다", "빛났습니다",
@@ -225,9 +233,55 @@ def duplicates(body: str) -> list[str]:
     return found
 
 
+def related_links(slug_dir: Path, body: str) -> list[str]:
+    """'함께 보면 좋은 글' 로 건 교육후기 링크를 검사한다.
+
+    세 가지를 본다. 이번 글 자신을 걸었는가, 두 링크가 같은 글인가, 카드 썸네일이
+    이번 글 사진과 같은 사진인가.
+
+    썸네일은 파일 해시가 아니라 dHash 로 본다 — 같은 사진도 크롭·재압축되면 파일이
+    달라져 해시로는 못 잡는다. 실제로 그렇게 놓친 적이 있다.
+
+    **확인하지 못한 경우도 차단이다.** 조회에 실패했다고 "겹치지 않는다"로 넘기면
+    검사를 건너뛴 채 발행되는 길이 생긴다. 이 프로젝트의 차단 검사는 통과를 증명해야
+    통과하는 쪽이다.
+    """
+    slugs = thumb_dupe.linked_slugs(body)
+    if not slugs:
+        return []
+
+    fails = []
+    meta_json = slug_dir / "meta.json"
+    m = json.loads(meta_json.read_text(encoding="utf-8")) if meta_json.exists() else {}
+    self_slug = m.get("site_slug") or slug_dir.name
+    if self_slug in slugs:
+        fails.append(f"연결 글에 이번 글 자신을 걸었음: {self_slug}")
+
+    dup = {s for s in slugs if slugs.count(s) > 1}
+    if dup:
+        fails.append(f"같은 글을 두 번 걸었음: {', '.join(sorted(dup))}")
+
+    key = str(slug_dir.resolve()) + "|" + "|".join(sorted(set(slugs)))
+    if key not in _LINK_CACHE:
+        _LINK_CACHE[key] = thumb_dupe.check_links(slug_dir, body)
+    for r in _LINK_CACHE[key]:
+        if r["status"] == "same":
+            fails.append(
+                f"연결 글 썸네일이 이번 글 사진과 같은 사진: {r['slug']} "
+                f"({r.get('closest_photo', '')}, 거리 {r.get('distance')})"
+            )
+        elif r["status"] == "unknown":
+            fails.append(
+                f"연결 글 썸네일을 확인하지 못함: {r['slug']} ({r.get('why', '')}) "
+                "— 확인되지 않은 것은 통과로 보지 않는다"
+            )
+    return fails
+
+
 def blocking(slug_dir: Path, meta: dict, body: str) -> list[str]:
     """루브릭 2절 차단 검사. 걸리면 발행하지 않는다."""
     fails = []
+    fails += related_links(slug_dir, body)
 
     if not (slug_dir / "insight.md").exists():
         fails.append("insight.md 없음 — 이 회차의 발견 한 줄을 먼저 쓴다")
