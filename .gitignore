@@ -6,15 +6,15 @@ out/
 발행완료/
 docs/preview/
 
-.naver-profile/
-.naver-session.json
+.naver-profile*/
+.naver-session*.json
 
 # 자격증명. 저장소에 올리지 않는다. (.env.example 이 채울 항목 안내)
 .env
 .secrets.toml
 
-.daeasy-profile/
-.daeasy-session.json
+.daeasy-profile*/
+.daeasy-session*.json
 
 # 혹시 만들더라도 올라가지 않도록 (자격증명이 담기는 자리)
 .env.local
