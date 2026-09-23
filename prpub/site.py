@@ -106,7 +106,8 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
 
         m = _IMG.match(s)
         if m:
-            cap, path = m.group(1), m.group(2)
+            # 원고 캡션에 HTML 엔티티(&#39; 등)가 섞여 있으면 아래 escape와 겹쳐 깨진다 — 먼저 푼다
+            cap, path = html.unescape(m.group(1)), m.group(2)
             url = upload(path)
             if not url:
                 continue
