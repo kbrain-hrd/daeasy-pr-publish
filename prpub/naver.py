@@ -258,9 +258,6 @@ SEL = {
 # 기존 글의 서식: 소제목은 30 굵게, 본문은 기본 15
 HEADING_SIZE = "fs30"
 BODY_SIZE = "fs15"
-# 맺음(공식 멘트) 블록 — 본문(15)보다 크게, 소제목(30)보다 작게. 본문과 다른
-# 공식 문구임이 한눈에 구분되도록 크기+굵게로 넣는다.
-CLOSING_SIZE = "fs19"
 
 # 글꼴은 기본서체로 고정한다. 블로그마다 기본값이 달라(이 계정은 나눔고딕) 글이
 # 제각각으로 보였다. "system" 은 서체 목록의 기본서체 항목이 쓰는 값이다.
@@ -756,20 +753,20 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
             elif b["kind"] == "stats":
                 # `::수치 …::` 를 글머리 목록으로. 사이트의 <ul><li> 와 같은 구조다.
                 _insert_stats(pg, fr, b["value"])
+                # 컴포넌트에서 빠져나온 새 문단은 계정 기본 글꼴(이 계정은 나눔고딕)로
+                # 돌아간다 — 이후 본문이 기본서체를 유지하도록 다시 고정한다.
+                _set_font_default(pg, fr)
             elif b["kind"] == "quote":
                 # `::인용 …::` 를 인용구 컴포넌트로. 사이트의 blockquote 와 같다.
                 _insert_quote(pg, fr, b["value"][0], b["value"][1])
+                _set_font_default(pg, fr)
             elif b["kind"] == "blank":
                 pg.keyboard.press("Enter")
             elif b["kind"] == "closing":
-                # 맺음(공식 멘트) — 본문과 다른 공식 문구임이 보이도록 크기 19 + 굵게.
-                # 문구는 그대로 넣고, 다음 줄에서 본문 서식으로 되돌린다.
-                _set_size(pg, fr, CLOSING_SIZE)
-                _toggle_bold(pg, fr)
-                pg.keyboard.insert_text(b["value"])
-                _toggle_bold(pg, fr)
-                pg.keyboard.press("Enter")
-                _set_size(pg, fr, BODY_SIZE)
+                # 맺음(공식 멘트) — 인용구 컴포넌트로 넣어 본문과 다른 공식 문구임을
+                # 시각적으로 구분한다 (출처 칸은 비운다). 문구는 그대로.
+                _insert_quote(pg, fr, b["value"], "")
+                _set_font_default(pg, fr)
             elif b["kind"] == "heading":
                 # 기존 글과 같이 크기 30 · 굵게 로 쓰고, 다음 줄에서 본문 서식으로 되돌린다
                 _set_size(pg, fr, HEADING_SIZE)
@@ -783,6 +780,7 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
             elif b["kind"] == "line":
                 fr.locator(SEL["구분선"]).click()
                 pg.wait_for_timeout(700)
+                _set_font_default(pg, fr)
             elif b["kind"] == "image":
                 if photo_i >= len(photos):
                     continue
@@ -808,6 +806,7 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
                     fr.locator(SEL["구분선"]).click()
                     pg.wait_for_timeout(700)
                     edu_done = True
+                _set_font_default(pg, fr)
             pg.wait_for_timeout(120)
 
         print(f"본문 입력 완료. 사진 {photo_i}장, 블록 {len(data['블록'])}개")
