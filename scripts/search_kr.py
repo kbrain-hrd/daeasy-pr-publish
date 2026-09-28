@@ -63,7 +63,9 @@ DOTENV = ROOT / ".env"
 
 NAVER_WHERE = {"news": "뉴스", "blog": "블로그", "cafearticle": "카페", "webkr": "웹문서"}
 DEFAULT_WHERE = "news,blog,cafearticle,webkr"
-SOURCES = ("korea", "naver", "kakao")
+# 기본 실행 갈래. naver 는 뺐다 — 2026-09-07 개정 약관(아래 naver() 주석)으로
+# AI 파이프라인 입력에 못 쓴다. `--only naver` 로 명시하면 수동 실행은 된다.
+SOURCES = ("korea", "kakao")
 
 # HTTP 헤더는 latin-1 만 담을 수 있다. 한글을 넣으면 요청 자체가 터진다.
 UA = "daeasy-pr-publish/1.0 (+https://daeasy.vercel.app; data-edu@kbrainc.com)"
@@ -160,7 +162,14 @@ def korea(query: str, n: int, since: str) -> list[dict]:
     return out
 
 
-# ── 3. 네이버 검색 API — 키 필요 ────────────────────────────────────────
+# ── 3. 네이버 검색 API — 키 필요 · AI 입력 금지 ─────────────────────────
+#
+# ⚠️ 2026-09-07 시행 네이버 API 이용약관: 검색 API 결과를 "인공지능에 입력하거나
+#    학습·개선·평가·노출 등에 활용하는 행위" 금지, 결과의 저장·DB화 금지,
+#    "네이버 검색 결과를 제공하기 위한 목적"으로만 사용 가능.
+#    → 이 갈래의 결과를 researcher 등 LLM 프롬프트에 넣으면 약관 위반이다.
+#    그래서 SOURCES 기본에서 빠져 있고, `--only naver` 명시 실행은
+#    **사람이 직접 읽는 용도 전용**이다. (HUB 연동 자체는 2026-09-28 검증 완료)
 
 
 def naver(query: str, where: str, n: int) -> list[dict]:
