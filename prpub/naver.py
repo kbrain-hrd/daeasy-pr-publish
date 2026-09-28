@@ -345,7 +345,16 @@ def _set_font_default(pg, fr) -> None:
     값으로 집는다. 실패해도 글쓰기는 계속한다. 글꼴은 발행을 막을 일이 아니다.
     """
     try:
-        fr.locator(SEL["글꼴버튼"]).first.click()
+        btn = fr.locator(SEL["글꼴버튼"]).first
+        # 이미 기본서체면 드롭다운을 열지 않는다. 컴포넌트마다 재고정을 부르므로
+        # 대부분의 호출이 여기서 끝난다 — 드롭다운을 열었다 못 닫으면 그 플레이어
+        # (se-popup-…-flayer)의 투명 dim 이 이후 모든 클릭을 가로챈다 (실측).
+        try:
+            if "기본서체" in (btn.inner_text(timeout=1500) or ""):
+                return
+        except Exception:
+            pass
+        btn.click()
         opt = fr.locator(SEL["글꼴옵션"].format(BODY_FONT)).first
         opt.wait_for(state="visible", timeout=5000)
         opt.click()
@@ -355,6 +364,15 @@ def _set_font_default(pg, fr) -> None:
             pg.wait_for_timeout(400)
     except Exception:
         print("글꼴을 기본서체로 바꾸지 못했습니다. 에디터에서 직접 확인하세요.")
+    finally:
+        # 성공이든 실패든, 열린 채 남은 팝업/드롭다운은 반드시 걷어낸다 —
+        # 방치하면 다음 클릭부터 전부 타임아웃이다.
+        try:
+            if fr.locator('[class*="se-popup"][class*="--visible"]').count():
+                pg.keyboard.press("Escape")
+                pg.wait_for_timeout(300)
+        except Exception:
+            pass
 
 
 def _toggle_bold(pg, fr) -> None:
