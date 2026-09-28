@@ -344,8 +344,8 @@ def _set_font_default(pg, fr) -> None:
     라는 말이 목록 전체 텍스트에도 걸려 엉뚱한 요소를 누른다. 크기 옵션과 같이
     값으로 집는다. 실패해도 글쓰기는 계속한다. 글꼴은 발행을 막을 일이 아니다.
     """
+    btn = fr.locator(SEL["글꼴버튼"]).first
     try:
-        btn = fr.locator(SEL["글꼴버튼"]).first
         # 이미 기본서체면 드롭다운을 열지 않는다. 컴포넌트마다 재고정을 부르므로
         # 대부분의 호출이 여기서 끝난다 — 드롭다운을 열었다 못 닫으면 그 플레이어
         # (se-popup-…-flayer)의 투명 dim 이 이후 모든 클릭을 가로챈다 (실측).
@@ -364,11 +364,24 @@ def _set_font_default(pg, fr) -> None:
             pg.wait_for_timeout(400)
     except Exception:
         print("글꼴을 기본서체로 바꾸지 못했습니다. 에디터에서 직접 확인하세요.")
+        # 왜 실패했는지 화면으로 남긴다 — 선택자 불일치 진단용
+        try:
+            pg.screenshot(path=str(ROOT / "naver_글꼴실패.png"))
+        except Exception:
+            pass
     finally:
         # 성공이든 실패든, 열린 채 남은 팝업/드롭다운은 반드시 걷어낸다 —
-        # 방치하면 다음 클릭부터 전부 타임아웃이다.
+        # 방치하면 다음 클릭부터 전부 타임아웃이다. 아이콘 드롭다운은 토글
+        # 재클릭이 정석 닫기고, Escape 는 그다음 보루다.
         try:
-            if fr.locator('[class*="se-popup"][class*="--visible"]').count():
+            flayer = fr.locator('[class*="se-popup"][class*="--visible"]')
+            if flayer.count():
+                try:
+                    btn.click(timeout=1500)
+                except Exception:
+                    pass
+                pg.wait_for_timeout(300)
+            if flayer.count():
                 pg.keyboard.press("Escape")
                 pg.wait_for_timeout(300)
         except Exception:
@@ -457,12 +470,27 @@ def _insert_quote(pg, fr, said: str, who: str) -> None:
         except Exception:
             print("인용구 출처 칸을 채우지 못했습니다.")
 
-    # 인용구 밖으로 — 컴포넌트 아래를 눌러 새 문단을 만든다
+    # 인용구 밖으로 — 컴포넌트 아래를 눌러 새 문단을 만든다.
+    # 문서 끝의 인용구(맺음 멘트)는 아래 +60px 이 에디터 하단에 떠 있는
+    # '글감 검색' 바와 겹친다 — 그걸 누르면 글감 패널(se-popup-unified-result-flayer)이
+    # 열려 투명 dim 이 이후 모든 클릭을 가로챈다 (실측으로 확인).
+    # 클릭 전에 인용구를 화면 중앙으로 끌어올려 아래 지점이 본문 영역이 되게 하고,
+    # 그래도 글감 패널이 열렸으면 바로 닫는다.
     try:
-        box = fr.locator(SEL["인용구"]).last.bounding_box()
+        el = fr.locator(SEL["인용구"]).last
+        try:
+            el.evaluate("e => e.scrollIntoView({block: 'center'})")
+            pg.wait_for_timeout(300)
+        except Exception:
+            pass
+        box = el.bounding_box()
         if box:
             pg.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] + 60)
             pg.wait_for_timeout(600)
+            flayer = fr.locator('[class*="unified-result-flayer"][class*="--visible"]')
+            if flayer.count():
+                pg.keyboard.press("Escape")
+                pg.wait_for_timeout(400)
     except Exception:
         print("인용구 뒤로 빠져나오지 못했습니다. 이후 문단이 인용구 안에 들어갈 수 있습니다.")
 
