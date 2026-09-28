@@ -130,7 +130,9 @@ def search_score(meta: dict, body: str, org: str, course: str) -> tuple[float, l
         notes.append(f"사진 {photos}장 (2장 이상 권장)")
 
     # 7. 사이트 링크 (0.5)
-    if "daeasy.vercel.app" in body:
+    # 도메인이 daeasy.co.kr 로 바뀐 뒤에도 옛 주소만 찾고 있어, 모든 원고가 이 점수를
+    # 못 받고 있었다. 옛 주소로 쓴 오래된 원고도 인정한다.
+    if "daeasy.co.kr" in body or "daeasy.vercel.app" in body:
         got += 0.5
     else:
         notes.append("사이트로 가는 링크가 없다")
