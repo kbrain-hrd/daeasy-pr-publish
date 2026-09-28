@@ -123,6 +123,9 @@ def check() -> bool:
 # site.py 의 _STATS·_QUOTE 와 같은 규칙이어야 사이트와 네이버 결과가 어긋나지 않는다.
 _STATS = re.compile(r"^::수치\s*(.+?)\s*::$")
 _QUOTE = re.compile(r"^::인용\s*(.+?)\s*::$")
+# `::맺음 문장::` — 글 끝의 DAEASY 공식 멘트. 본문과 다른 공식 문구임이 보이도록
+# fill() 이 본문보다 큰 글씨(CLOSING_SIZE)+굵게로 넣는다. 문구 자체는 그대로 둔다.
+_CLOSING = re.compile(r"^::맺음\s*(.+?)\s*::$")
 # 주소만 있는 줄이라야 링크 카드가 된다. 문장 안에 섞인 주소는 글자 링크로 둔다 —
 # 교육 문의 안내문이 카드로 변해 맺음에 카드가 하나 더 붙던 것을 막는다.
 _URL_ONLY = re.compile(r"^https?://\S+$")
@@ -170,6 +173,11 @@ def parse(md_path: Path) -> dict:
             parts = [x.strip() for x in m.group(1).split("|")]
             blocks.append({"kind": "quote",
                            "value": (parts[0], parts[1] if len(parts) > 1 else "")})
+            after_line = False
+            continue
+        m = _CLOSING.match(s)
+        if m:
+            blocks.append({"kind": "closing", "value": m.group(1)})
             after_line = False
             continue
         m = _STATS.match(s)
@@ -250,6 +258,9 @@ SEL = {
 # 기존 글의 서식: 소제목은 30 굵게, 본문은 기본 15
 HEADING_SIZE = "fs30"
 BODY_SIZE = "fs15"
+# 맺음(공식 멘트) 블록 — 본문(15)보다 크게, 소제목(30)보다 작게. 본문과 다른
+# 공식 문구임이 한눈에 구분되도록 크기+굵게로 넣는다.
+CLOSING_SIZE = "fs19"
 
 # 글꼴은 기본서체로 고정한다. 블로그마다 기본값이 달라(이 계정은 나눔고딕) 글이
 # 제각각으로 보였다. "system" 은 서체 목록의 기본서체 항목이 쓰는 값이다.
@@ -750,6 +761,15 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
                 _insert_quote(pg, fr, b["value"][0], b["value"][1])
             elif b["kind"] == "blank":
                 pg.keyboard.press("Enter")
+            elif b["kind"] == "closing":
+                # 맺음(공식 멘트) — 본문과 다른 공식 문구임이 보이도록 크기 19 + 굵게.
+                # 문구는 그대로 넣고, 다음 줄에서 본문 서식으로 되돌린다.
+                _set_size(pg, fr, CLOSING_SIZE)
+                _toggle_bold(pg, fr)
+                pg.keyboard.insert_text(b["value"])
+                _toggle_bold(pg, fr)
+                pg.keyboard.press("Enter")
+                _set_size(pg, fr, BODY_SIZE)
             elif b["kind"] == "heading":
                 # 기존 글과 같이 크기 30 · 굵게 로 쓰고, 다음 줄에서 본문 서식으로 되돌린다
                 _set_size(pg, fr, HEADING_SIZE)
