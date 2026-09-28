@@ -1,0 +1,21 @@
+{
+  "$comment": "보관본 정적 배포 설정. serve.py 가 로컬에서 해주던 두 가지를 Vercel 에서 재현한다: (1) /_serverFn/<id> 응답에 x-tss-serialized 헤더 — 없으면 화면이 'data is undefined' 로 죽는다 (2) 확장자 없는 경로의 디렉토리 index.html — Vercel 정적 호스팅이 기본 제공. 배포: 이 폴더(output-archive)를 프로젝트 루트로, Framework=Other, Build 없음, Output=sites.",
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": "sites",
+  "headers": [
+    {
+      "source": "/:slug/_serverFn/:fn*",
+      "headers": [
+        { "key": "x-tss-serialized", "value": "true" },
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    }
+  ]
+}
