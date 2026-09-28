@@ -708,6 +708,22 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
                 pg.wait_for_timeout(800)
             except Exception:
                 pass
+        # 그 밖의 안내 플레이어(se-popup-…-flayer — 임시저장이 쌓이면 뜨는 통합
+        # 안내 등)가 남아 있으면 이후 모든 클릭을 가로챈다. 실제로
+        # se-popup-unified-result-flayer 가 떠서 본문 클릭이 전부 막혔다.
+        # 보이는 팝업이 없어질 때까지 닫기 버튼→Esc 순으로 걷어낸다.
+        flayer = fr.locator('[class*="se-popup"][class*="--visible"]')
+        for _ in range(5):
+            try:
+                if not flayer.count():
+                    break
+                try:
+                    fr.locator('[class*="se-popup"][class*="--visible"] button[class*="close"]').first.click(timeout=1500)
+                except Exception:
+                    pg.keyboard.press("Escape")
+                pg.wait_for_timeout(600)
+            except Exception:
+                break
         pg.wait_for_timeout(1000)
 
         title_box = fr.locator(SEL["제목"])
@@ -752,12 +768,14 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
                     pg.keyboard.press("Enter")
             elif b["kind"] == "stats":
                 # `::수치 …::` 를 글머리 목록으로. 사이트의 <ul><li> 와 같은 구조다.
+                # 목록 안 글씨는 들어가기 직전 커서 서체를 물려받으므로, 넣기 전과
+                # 빠져나온 뒤 양쪽에서 기본서체를 고정한다 (계정 기본은 나눔고딕).
+                _set_font_default(pg, fr)
                 _insert_stats(pg, fr, b["value"])
-                # 컴포넌트에서 빠져나온 새 문단은 계정 기본 글꼴(이 계정은 나눔고딕)로
-                # 돌아간다 — 이후 본문이 기본서체를 유지하도록 다시 고정한다.
                 _set_font_default(pg, fr)
             elif b["kind"] == "quote":
                 # `::인용 …::` 를 인용구 컴포넌트로. 사이트의 blockquote 와 같다.
+                _set_font_default(pg, fr)
                 _insert_quote(pg, fr, b["value"][0], b["value"][1])
                 _set_font_default(pg, fr)
             elif b["kind"] == "blank":
@@ -765,6 +783,7 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
             elif b["kind"] == "closing":
                 # 맺음(공식 멘트) — 인용구 컴포넌트로 넣어 본문과 다른 공식 문구임을
                 # 시각적으로 구분한다 (출처 칸은 비운다). 문구는 그대로.
+                _set_font_default(pg, fr)
                 _insert_quote(pg, fr, b["value"], "")
                 _set_font_default(pg, fr)
             elif b["kind"] == "heading":
@@ -801,7 +820,10 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
 
                 # 사이트는 대표사진 바로 아래에 교육 개요(교육명·기관·일자·대상)와
                 # 구분선을 고정으로 넣는다. 첫 사진 다음이 그 자리다.
+                # 사진 삽입 직후에는 서체가 계정 기본(나눔고딕)으로 리셋돼 있어,
+                # 교육 개요 목록에 들어가기 전에 기본서체부터 되돌린다.
                 if not edu_done:
+                    _set_font_default(pg, fr)
                     _insert_stats(pg, fr, edu_items)
                     fr.locator(SEL["구분선"]).click()
                     pg.wait_for_timeout(700)
