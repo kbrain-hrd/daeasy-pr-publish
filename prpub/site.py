@@ -95,6 +95,21 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
     thumb: str | None = None
     md = re.sub(r"<!--.*?-->", "", md, flags=re.S)
 
+    # 마커 줄(::인용·::수치·소제목·이미지)이 앞 문장에 빈 줄 없이 붙어 있으면,
+    # \n\n 분리에서 한 덩어리로 묶여 변환 규칙(^::인용…::$ 등)에 안 걸려 글자로 샌다.
+    # 분리 전에 마커 줄 앞뒤로 빈 줄을 보장한다 (writer 가 빈 줄을 빠뜨려도 안전).
+    _norm: list[str] = []
+    for ln in md.split("\n"):
+        st = ln.strip()
+        if st.startswith("::") or st.startswith("![") or st.startswith("## "):
+            if _norm and _norm[-1].strip():
+                _norm.append("")
+            _norm.append(ln)
+            _norm.append("")
+        else:
+            _norm.append(ln)
+    md = "\n".join(_norm)
+
     for block in md.split("\n\n"):
         s = block.strip()
         if not s or s.startswith("# "):

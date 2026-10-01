@@ -188,7 +188,9 @@ def parse(md_path: Path) -> dict:
             blocks.append({"kind": "stats", "value": items})
             after_line = False
             continue
-        if s == "[대표사진]" or s == "[사진]":
+        if s == "[대표사진]" or s == "[사진]" or _MD_IMG.fullmatch(s):
+            # [사진] 토큰뿐 아니라 마크다운 `![캡션](images/NN.jpg)` 줄도 이미지로 받는다.
+            # 변환기가 post.md 형식을 그대로 둬도 글자로 새지 않는다 (파일·캡션은 _photo_plan).
             blocks.append({"kind": "image", "value": s})
         elif s.startswith("#") and " " not in s:
             continue  # 해시태그 줄은 태그로 따로 넣는다
