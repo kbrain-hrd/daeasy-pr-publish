@@ -80,8 +80,17 @@ def _link(url: str) -> str:
 
 
 def _inline(s: str) -> str:
-    """굵게만 처리한다. 나머지는 그대로 이스케이프한다."""
+    """`[텍스트](URL)` 링크와 `**굵게**` 를 처리한다. 나머지는 이스케이프한다.
+
+    산출물 자료 등을 본문에서 눌러 볼 수 있게 마크다운 링크를 <a> 로 바꾼다.
+    html.escape 는 []() 를 건드리지 않으므로 escape 뒤에 치환해도 안전하다.
+    """
     out = html.escape(s)
+    out = re.sub(
+        r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+        out,
+    )
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", out)
 
 

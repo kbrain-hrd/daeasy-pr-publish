@@ -406,6 +406,9 @@ def _insert_rich(pg, fr, text: str) -> None:
     전에는 문단을 통째로 넣어 별표가 글자 그대로 들어갔다. 사이트 쪽은 site.py 가
     `**` 를 굵게 태그로 바꾸는데 네이버에만 그 처리가 없었다.
     """
+    # `[텍스트](URL)` 인라인 링크 — 네이버 본문 인라인 하이퍼링크는 자동화가 불안정해
+    # 글자로 새지 않게 `텍스트 (URL)` 평문으로 푼다. (확실히 누르게 하려면 URL 단독 줄→링크 카드)
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 (\2)", text)
     parts = re.split(r"\*\*(.+?)\*\*", text)
     for i, seg in enumerate(parts):
         if not seg:
@@ -711,6 +714,52 @@ def _photo_plan(slug_dir: Path, data: dict) -> list[tuple[Path, str]]:
     return [(f, "") for f in order]
 
 
+def _photo_uploads(slug_dir: Path, data: dict,
+                   photos: list[tuple[Path, str]]) -> list[tuple[Path, str] | None]:
+    """이미지 블록마다 올릴 (파일, 사진 설명) 을 블록 차례대로 정한다. 못 정하면 None.
+
+    전에는 블록을 만날 때마다 photos 를 앞에서부터 하나씩 꺼냈다. 그러면 [대표사진] 이
+    post.md 의 첫 사진을 가져가 뒤 사진이 한 칸씩 밀리고 마지막 사진은 말없이 빠졌다
+    — 실제로 [대표사진]→02, `![…](images/02.jpg)`→03, `![…](images/03.jpg)`→누락.
+
+    - [대표사진]: photos 의 첫 사진 — post.md 의 첫 이미지다. 사이트(site.py)가 대표로
+      쓰는 사진과 같다. naver.md 앞머리 `대표사진:` 은 그것을 옮겨 적은 값일 뿐이라
+      여기서 기준으로 삼지 않는다 (post.md 에 사진이 없는 옛 원고만 _photo_plan 이 쓴다).
+    - `![설명](경로)`: 줄에 적힌 경로의 파일 그대로.
+    - [사진]: 위 둘이 쓰지 않은 photos 를 post.md 차례대로.
+    사진 설명은 photos(post.md) 의 것을 쓴다.
+    """
+    captions = dict(photos)
+    values = [b["value"] for b in data["블록"] if b["kind"] == "image"]
+    cover = photos[0][0] if photos and "[대표사진]" in values else None
+    named = [slug_dir / m.group(2) for m in map(_MD_IMG.fullmatch, values) if m]
+    rest = [f for f, _ in photos if f != cover and f not in named]
+
+    uploads: list[tuple[Path, str] | None] = []
+    for v in values:
+        m = _MD_IMG.fullmatch(v)
+        if v == "[대표사진]":
+            f, own = cover, ""
+        elif m:
+            f, own = slug_dir / m.group(2), html.unescape(m.group(1)).strip()
+        else:
+            f, own = (rest.pop(0) if rest else None), ""
+        if f is None or not f.is_file():
+            where = f.relative_to(slug_dir).as_posix() if f else "남은 사진 없음"
+            print(f"경고: 사진 자리 {v[:60]} 에 넣을 파일이 없습니다 ({where}). 이 자리는 비워 둡니다.")
+            uploads.append(None)
+            continue
+        if m and f not in captions:
+            print(f"경고: {f.name} 이 post.md 에 없습니다. naver.md 에 적힌 설명을 씁니다.")
+        uploads.append((f, captions.get(f, own)))
+
+    used = [u[0] for u in uploads if u]
+    unused = [f.name for f, _ in photos if f not in used]
+    if unused:
+        print(f"경고: 사진 {', '.join(unused)} 은 naver.md 에 자리가 없어 올라가지 않습니다.")
+    return uploads
+
+
 def _edu_info_items(meta: dict) -> list[str]:
     """제목·대표사진 아래에 고정으로 붙는 교육 개요. site.py 의 _edu_info_block 과 같다.
 
@@ -731,7 +780,7 @@ def _edu_info_items(meta: dict) -> list[str]:
 def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool:
     """naver.md 를 스마트에디터에 채운다. publish=False 면 발행 직전에서 멈춘다."""
     data = parse(slug_dir / "naver.md")
-    photos = _photo_plan(slug_dir, data)
+    uploads = iter(_photo_uploads(slug_dir, data, _photo_plan(slug_dir, data)))
     photo_i = 0
     meta_path = slug_dir / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
@@ -849,9 +898,10 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
                 pg.wait_for_timeout(700)
                 _set_font_default(pg, fr)
             elif b["kind"] == "image":
-                if photo_i >= len(photos):
-                    continue
-                path, caption = photos[photo_i]
+                shot = next(uploads)
+                if shot is None:
+                    continue  # 경고는 _photo_uploads 가 이미 남겼다
+                path, caption = shot
                 inserted = fr.locator(".se-component.se-image")
                 before = inserted.count()
                 with pg.expect_file_chooser(timeout=15000) as fc:
