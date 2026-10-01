@@ -280,6 +280,33 @@ def related_links(slug_dir: Path, body: str) -> list[str]:
     return fails
 
 
+def photo_captions(slug_dir: Path) -> dict[str, str]:
+    """photos.md 의 `번호 · 파일 · 캡션 · 대표 여부` 줄에서 {파일 경로: 캡션}.
+
+    같은 내용을 표(`| 1 | images/01.jpg | 캡션 | 대표 |`)로 적은 것도 읽는다.
+    못 읽은 줄은 건너뛴다 — 읽지 못한 사진은 캡션 대조에서 빠진다.
+    """
+    f = slug_dir / "photos.md"
+    if not f.exists():
+        return {}
+    out: dict[str, str] = {}
+    for line in f.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip().strip("`*").strip() for c in re.split(r"\s·\s|\|", line)]
+        for i, c in enumerate(cells):
+            m = re.search(r"images/[^\s`|]+", c)
+            if not m:
+                continue
+            rest = cells[i + 1:]
+            while rest and not rest[-1]:
+                rest.pop()
+            if len(rest) >= 2 and len(rest[-1]) <= 6:   # 끝 칸은 대표 여부 (대표 / - / 아니오)
+                rest = rest[:-1]
+            if rest:
+                out[m.group(0)] = " · ".join(rest)
+            break
+    return out
+
+
 def blocking(slug_dir: Path, meta: dict, body: str) -> list[str]:
     """루브릭 2절 차단 검사. 걸리면 발행하지 않는다."""
     fails = []
@@ -298,8 +325,11 @@ def blocking(slug_dir: Path, meta: dict, body: str) -> list[str]:
         # 본문의 숫자가 원자료에 있는가.
         # 날짜는 표기가 갈려(2026-07-21 / 7월 21일 / 07.21) 그대로 대조하면 오탐이라 뺀다.
         t = body_text(body)
-        t = re.sub(r"\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?", " ", t)
+        t = re.sub(r"<!--.*?-->", " ", t, flags=re.S)   # 주석(site-slug·제목 후보)은 본문이 아니다
+        # 연도를 먼저 지운다 — 날짜 정규식보다 뒤에 두면 'YYYY-N' 슬러그(2026-2)에서
+        # 날짜 정규식이 '26-2'를 먹고 '20'이 외톨이로 남아 오차단된다(실측 버그).
         t = re.sub(r"20\d\d\s*[.\-년]?", " ", t)
+        t = re.sub(r"\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?", " ", t)
         nums = set(re.findall(r"\d+(?:\.\d+)?", t))
         src_nums = set(re.findall(r"\d+(?:\.\d+)?", src))
         missing = sorted(n for n in nums - src_nums if len(n) > 1)
@@ -323,6 +353,14 @@ def blocking(slug_dir: Path, meta: dict, body: str) -> list[str]:
     dup_img = {p for p in used_paths if used_paths.count(p) > 1}
     if dup_img:
         fails.append(f"같은 사진을 두 번 씀: {', '.join(sorted(dup_img))}")
+
+    # 캡션은 photos.md 의 것을 그대로 쓴다. 공백 차이만 무시하고 글자 그대로 대조한다 —
+    # 같은 글을 LLM 이 볼 때마다 판정이 갈려서 코드로 옮겼다.
+    captions = photo_captions(slug_dir)
+    for cap, path in re.findall(r"!\[([^\]]*)\]\(([^)]+)\)", body):
+        want = captions.get(path)
+        if want is not None and " ".join(cap.split()) != " ".join(want.split()):
+            fails.append(f"사진 캡션이 photos.md 와 다름: {path}")
 
     title = meta.get("제목", "")
     if title and len(title) > 60:
