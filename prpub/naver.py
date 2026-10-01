@@ -869,6 +869,16 @@ def write(slug_dir: Path, publish: bool = False, headless: bool = False) -> bool
                     if not _wait_count(pg, fr.locator(SEL["링크카드"]),
                                        before + 1, timeout_ms=8000):
                         print(f"링크 카드가 만들어지지 않았습니다: {b['value'][:60]}")
+                elif _OUTPUT_LINK.match(b["value"].strip()):
+                    # 산출물 링크 줄은 끝에 평문 URL 이 있어, 네이버가 이를 자동으로
+                    # 링크 카드·자동링크로 바꾸며 뒤따르는 Enter 를 삼킨다. 그 결과
+                    # 첫 줄엔 엉뚱한 카드가 끼고, 다음 산출물과의 빈 줄이 먹혀 붙어
+                    # 버렸다. Escape 로 자동변환 팝업을 먼저 닫아 카드 생성을 막고,
+                    # 그 뒤 Enter 로 줄바꿈해 그룹 간격을 안정시킨다.
+                    pg.wait_for_timeout(500)
+                    pg.keyboard.press("Escape")
+                    pg.wait_for_timeout(200)
+                    pg.keyboard.press("Enter")
                 else:
                     pg.keyboard.press("Enter")
             elif b["kind"] == "stats":
