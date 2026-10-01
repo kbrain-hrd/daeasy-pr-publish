@@ -72,6 +72,8 @@ _STATS = re.compile(r"^::수치\s*(.+?)\s*::$")
 _IMG = re.compile(r"^!\[(.*?)\]\((.+?)\)$")
 _URL = re.compile(r"^https?://\S+$")
 _RULE = re.compile(r"^[─—\-_]{3,}$")
+# `→ [결과물 보기](URL)` 산출물 링크 줄. 바로 위 산출물 설명 문단에 붙어야 한다.
+_OUTPUT_LINK = re.compile(r"^→\s*\[[^\]]+\]\(https?://\S+\)\s*$")
 
 
 def _link(url: str) -> str:
@@ -116,6 +118,12 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
             _norm.append(ln)
             _norm.append("")
         else:
+            # 산출물 링크 줄은 바로 위 설명 문단에 붙인다 — 사이 빈 줄을 지워 한 <p> 안에
+            # <br> 로 묶는다. 그러면 설명 바로 아래 링크(좁은 간격)·그룹 사이 <p> 여백(넓은
+            # 간격)으로 갈려, 이전 산출물이 다음 과제에 붙어 보이던 문제가 사라진다.
+            if _OUTPUT_LINK.match(st) and len(_norm) >= 2 \
+                    and _norm[-1].strip() == "" and _norm[-2].strip():
+                _norm.pop()
             _norm.append(ln)
     md = "\n".join(_norm)
 
