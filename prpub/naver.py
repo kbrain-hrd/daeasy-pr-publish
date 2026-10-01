@@ -129,6 +129,10 @@ _CLOSING = re.compile(r"^::맺음\s*(.+?)\s*::$")
 # 주소만 있는 줄이라야 링크 카드가 된다. 문장 안에 섞인 주소는 글자 링크로 둔다 —
 # 교육 문의 안내문이 카드로 변해 맺음에 카드가 하나 더 붙던 것을 막는다.
 _URL_ONLY = re.compile(r"^https?://\S+$")
+# `→ [결과물 보기](URL)` 산출물 링크 줄. 바로 위 산출물 설명 문단에 붙어야 하는데
+# md 에는 문단마다 빈 줄이 있어 설명과 링크 사이에도 빈 줄이 끼어, 링크가 자기 설명이
+# 아니라 다음 산출물에 붙어 보였다. 이 줄 앞의 빈 줄 하나를 지워 설명 바로 아래에 붙인다.
+_OUTPUT_LINK = re.compile(r"^→\s*\[[^\]]+\]\(https?://\S+\)\s*$")
 
 
 def parse(md_path: Path) -> dict:
@@ -198,6 +202,10 @@ def parse(md_path: Path) -> dict:
             # 구분선 다음 짧은 한 줄이 소제목이다. 맺음의 [교육 문의 …] 안내는 본문으로 둔다.
             blocks.append({"kind": "heading", "value": s})
         else:
+            # 산출물 링크 줄은 바로 위 설명 문단에 붙인다 — 사이 빈 줄 블록을 지운다.
+            if _OUTPUT_LINK.match(s) and len(blocks) >= 2 \
+                    and blocks[-1]["kind"] == "blank" and blocks[-2]["kind"] == "text":
+                blocks.pop()
             blocks.append({"kind": "text", "value": s})
         after_line = False
 
