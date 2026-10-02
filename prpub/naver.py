@@ -133,6 +133,9 @@ _URL_ONLY = re.compile(r"^https?://\S+$")
 # md 에는 문단마다 빈 줄이 있어 설명과 링크 사이에도 빈 줄이 끼어, 링크가 자기 설명이
 # 아니라 다음 산출물에 붙어 보였다. 이 줄 앞의 빈 줄 하나를 지워 설명 바로 아래에 붙인다.
 _OUTPUT_LINK = re.compile(r"^→\s*\[[^\]]+\]\(https?://\S+\)\s*$")
+# `::산출물 결과물명 | 소개글 | 썸네일 | URL::` 카드 마커. 네이버엔 카드가 없어 converter 가
+# 풀어서 넘기는 게 정상이지만, 안 풀고 넘어오면 글자로 새지 않게 여기서도 풀어 준다.
+_OUTPUT = re.compile(r"^::산출물\s*(.+?)\s*::$")
 
 
 def parse(md_path: Path) -> dict:
@@ -182,6 +185,22 @@ def parse(md_path: Path) -> dict:
         m = _CLOSING.match(s)
         if m:
             blocks.append({"kind": "closing", "value": m.group(1)})
+            after_line = False
+            continue
+        m = _OUTPUT.match(s)
+        if m:
+            # 산출물 카드를 풀어 넣는다(안전망): 결과물명(굵게) → 소개글 → 결과물 보기 링크.
+            # 썸네일(3번째 칸)은 사이트 카드 전용이라 네이버에선 쓰지 않는다.
+            parts = [x.strip() for x in m.group(1).split("|")]
+            name = parts[0] if len(parts) > 0 else ""
+            desc = parts[1] if len(parts) > 1 else ""
+            url = parts[3] if len(parts) > 3 else ""
+            if name:
+                blocks.append({"kind": "text", "value": f"**{name}**"})
+            if desc:
+                blocks.append({"kind": "text", "value": desc})
+            if url:
+                blocks.append({"kind": "text", "value": f"→ [결과물 보기]({url})"})
             after_line = False
             continue
         m = _STATS.match(s)
