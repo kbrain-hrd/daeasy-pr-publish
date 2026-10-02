@@ -408,17 +408,12 @@ def _toggle_bold(pg, fr) -> None:
     pg.wait_for_timeout(250)
 
 
-def _insert_rich(pg, fr, text: str) -> None:
-    """문단 하나를 넣는다. `**굵게**` 구간만 굵게 처리한다.
+_MD_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
 
-    전에는 문단을 통째로 넣어 별표가 글자 그대로 들어갔다. 사이트 쪽은 site.py 가
-    `**` 를 굵게 태그로 바꾸는데 네이버에만 그 처리가 없었다.
-    """
-    # `[텍스트](URL)` 인라인 링크 — 네이버 본문 인라인 하이퍼링크는 자동화가 불안정해
-    # 글자로 새지 않게 `텍스트 (URL)` 평문으로 푼다. (확실히 누르게 하려면 URL 단독 줄→링크 카드)
-    text = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 (\2)", text)
-    parts = re.split(r"\*\*(.+?)\*\*", text)
-    for i, seg in enumerate(parts):
+
+def _insert_bold(pg, fr, text: str) -> None:
+    """평문 + `**굵게**` 구간만 처리해 넣는다 (링크는 _insert_rich 가 먼저 떼어낸다)."""
+    for i, seg in enumerate(re.split(r"\*\*(.+?)\*\*", text)):
         if not seg:
             continue
         if i % 2 == 1:          # 홀수 조각이 별표 안쪽이다
@@ -427,6 +422,45 @@ def _insert_rich(pg, fr, text: str) -> None:
             _toggle_bold(pg, fr)
         else:
             pg.keyboard.insert_text(seg)
+
+
+def _insert_link(pg, fr, label: str, url: str) -> None:
+    """`label` 글자를 네이버 인라인 하이퍼링크로 넣는다. 실패하면 `label (url)` 평문 폴백.
+
+    URL 을 본문에 평문으로 두면 네이버가 자동으로 링크/카드로 바꾸며 뒤 Enter 를
+    삼켜 줄바꿈이 깨졌다. 그래서 라벨 글자만 넣어 선택한 뒤, 링크 도구(링크창)에
+    URL 을 넣어 라벨에 링크를 건다 — 본문에는 raw URL 이 남지 않는다.
+    """
+    try:
+        pg.keyboard.insert_text(label)
+        for _ in range(len(label)):      # 방금 넣은 라벨만 역방향 선택
+            pg.keyboard.press("Shift+ArrowLeft")
+        pg.wait_for_timeout(200)
+        fr.locator("button.se-link-toolbar-button").first.click(timeout=3000)
+        inp = fr.locator("input.se-custom-layer-link-input")
+        inp.wait_for(state="visible", timeout=3000)
+        inp.fill(url)
+        pg.wait_for_timeout(150)
+        fr.locator("button.se-custom-layer-link-apply-button").first.click(timeout=3000)
+        pg.wait_for_timeout(300)
+        pg.keyboard.press("ArrowRight")   # 선택 해제, 커서를 라벨 끝으로
+    except Exception as e:
+        print(f"인라인 링크 실패, 평문 폴백: {e}")
+        pg.keyboard.insert_text(f" ({url})")
+
+
+def _insert_rich(pg, fr, text: str) -> None:
+    """문단 하나를 넣는다. `[텍스트](URL)` 는 인라인 하이퍼링크로, `**굵게**` 는 굵게로.
+
+    전에는 문단을 통째로 넣어 별표가 글자 그대로 들어갔다. 사이트 쪽은 site.py 가
+    `**` 를 굵게 태그로, `[](url)` 를 <a> 로 바꾸는데 네이버에만 그 처리가 없었다.
+    """
+    pos = 0
+    for m in _MD_LINK.finditer(text):
+        _insert_bold(pg, fr, text[pos:m.start()])
+        _insert_link(pg, fr, m.group(1), m.group(2))
+        pos = m.end()
+    _insert_bold(pg, fr, text[pos:])
 
 
 def _set_list(pg, fr, value: str) -> None:
