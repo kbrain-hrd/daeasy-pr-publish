@@ -74,6 +74,8 @@ _URL = re.compile(r"^https?://\S+$")
 _RULE = re.compile(r"^[─—\-_]{3,}$")
 # `→ [결과물 보기](URL)` 산출물 링크 줄. 바로 위 산출물 설명 문단에 붙어야 한다.
 _OUTPUT_LINK = re.compile(r"^→\s*\[[^\]]+\]\(https?://\S+\)\s*$")
+# `::산출물 제목 | 설명 | 썸네일파일 | URL::` 산출물 카드. 썸네일 이미지를 올려 카드로 렌더한다.
+_OUTPUT = re.compile(r"^::산출물\s*(.+?)\s*::$")
 
 
 def _link(url: str) -> str:
@@ -167,6 +169,32 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
                 f"<li>{_inline(x.strip())}</li>" for x in m.group(1).split("|") if x.strip()
             )
             body.append(f"<ul>{items}</ul>")
+            continue
+
+        m = _OUTPUT.match(s)
+        if m:
+            # 산출물 = 산출물명(소제목) → 소개글(본문) → 카드(썸네일+결과물 보기). 순서가 핵심:
+            # 설명은 카드 밖 본문 문단으로 두고, 카드는 썸네일 이미지와 '결과물 보기' 링크만
+            # 담는다. 제목 | 설명 | 썸네일파일 | URL. sanitize-html 이 style·div 를 지우므로
+            # 허용 태그(h3/p/figure/a/img/figcaption)와 class 로만 짠다.
+            parts = [x.strip() for x in m.group(1).split("|")]
+            title = parts[0] if len(parts) > 0 else ""
+            desc = parts[1] if len(parts) > 1 else ""
+            thumb_src = parts[2] if len(parts) > 2 else ""
+            url = parts[3] if len(parts) > 3 else ""
+            img_url = upload(thumb_src) if thumb_src else None
+            out = f'<h3 class="output-subject">{_inline(title)}</h3>' if title else ""
+            if desc:
+                out += f"<p>{_inline(desc)}</p>"
+            card = '<figure class="output-card">'
+            if img_url:
+                img = f'<img src="{html.escape(img_url)}" alt="{html.escape(title)}">'
+                card += (f'<a class="output-card-media" href="{html.escape(url)}" target="_blank" '
+                         f'rel="noopener">{img}</a>') if url else img
+            if url:
+                card += (f'<figcaption class="output-card-cta"><a href="{html.escape(url)}" '
+                         f'target="_blank" rel="noopener">결과물 보기 →</a></figcaption>')
+            body.append(out + card + "</figure>")
             continue
 
         if _RULE.match(s):
