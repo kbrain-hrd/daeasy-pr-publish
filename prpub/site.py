@@ -69,6 +69,10 @@ def login(timeout_min: int = 10) -> bool:
 
 _QUOTE = re.compile(r"^::인용\s*(.+?)\s*::$")
 _STATS = re.compile(r"^::수치\s*(.+?)\s*::$")
+# `::맺음 문장::` — 글 끝의 DAEASY 공식 마무리 멘트. 본문과 구분되게 인용구 박스로,
+# 위 여백을 더 주고(mt-10) 글씨를 키워(text-lg) 렌더한다. sanitize 가 class 는 허용하고
+# mt-10·text-lg 는 사이트 번들에 이미 있는 클래스라 프론트 변경 없이 먹는다.
+_CLOSING = re.compile(r"^::맺음\s*(.+?)\s*::$")
 _IMG = re.compile(r"^!\[(.*?)\]\((.+?)\)$")
 _URL = re.compile(r"^https?://\S+$")
 _RULE = re.compile(r"^[─—\-_]{3,}$")
@@ -152,6 +156,14 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
             if cap:
                 fig += f"<figcaption>{_inline(cap)}</figcaption>"
             body.append(fig + "</figure>")
+            continue
+
+        m = _CLOSING.match(s)
+        if m:
+            # 맺음(공식 마무리 멘트) — 인용구 박스로, 위 여백 더(mt-10)·글씨 키워(text-lg).
+            body.append(
+                f'<blockquote class="mt-10"><p class="text-lg">{_inline(m.group(1))}</p></blockquote>'
+            )
             continue
 
         m = _QUOTE.match(s)
