@@ -169,10 +169,14 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
         m = _QUOTE.match(s)
         if m:
             parts = [x.strip() for x in m.group(1).split("|")]
-            q = f"<blockquote><p>{_inline(parts[0])}</p>"
-            if len(parts) > 1:
-                q += f"<p><em>{_inline(parts[1])}</em></p>"
-            body.append(q + "</blockquote>")
+            # 사이트 prose 가 blockquote 의 첫/마지막 '문단(p)' 에 여는/닫는 따옴표를 붙인다.
+            # 출처(누가)를 <p> 로 두면 닫는 따옴표가 출처까지 감싼다("…했습니다. 수강생").
+            # 출처는 <p> 가 아닌 <div> 로 둬서, 닫는 따옴표는 인용문 p 에서 끝나고
+            # 출처는 인용 블록 안에 같은 형식(기울임)으로 따옴표 밖에 남는다.
+            out = f"<blockquote><p>{_inline(parts[0])}</p>"
+            if len(parts) > 1 and parts[1]:
+                out += f"<div><em>{_inline(parts[1])}</em></div>"
+            body.append(out + "</blockquote>")
             continue
 
         m = _STATS.match(s)
