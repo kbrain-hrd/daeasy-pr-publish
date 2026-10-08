@@ -770,7 +770,11 @@ def _photo_plan(slug_dir: Path, data: dict) -> list[tuple[Path, str]]:
 
     # post.md 가 없는 옛 원고는 종전대로 파일 이름 순, 설명 없이
     cover = slug_dir / data["대표사진"] if data["대표사진"] else None
-    rest = sorted((slug_dir / "images").glob("*")) if (slug_dir / "images").exists() else []
+    # 이미지 파일만 — 블러 전처리가 만든 images/원본/ 하위폴더와 블러리포트.json 은 제외한다.
+    _imgdir = slug_dir / "images"
+    rest = (sorted(f for f in _imgdir.glob("*")
+                   if f.is_file() and f.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic"})
+            if _imgdir.exists() else [])
     order = ([cover] if cover and cover.exists() else []) + [f for f in rest if f != cover]
     return [(f, "") for f in order]
 
