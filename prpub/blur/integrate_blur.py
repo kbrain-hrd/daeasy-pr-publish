@@ -16,6 +16,34 @@ import cv2
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
+# 이벤트 옵션(기본 off): 얼굴 높이가 이미지의 이 비율 이상이면 블러 대상에서 keep으로 돌린다.
+# 수상식·발표처럼 '앞에 나온 사람(큰 얼굴)'은 공개하고 '앉아 듣는 청중(작은 얼굴)'만 가릴 때 쓴다.
+# 0 이면 종전과 동일(강사만 keep, 나머지 학생 전부 블러).
+_KEEP_FACE_MIN_H = float(os.environ.get("DAEASY_BLUR_KEEP_FACE_MIN_H", "0") or "0")
+# 위 keep의 세로 위치 가드: 얼굴 중심이 이미지 상단에서 이 비율보다 아래(=앞줄 청중)면 크더라도
+# keep하지 않는다(카메라에 가까운 앞줄 청중이 무대 인물보다 크게 잡히는 역전을 막는다). 1.0=제약 없음.
+_KEEP_FACE_MAX_CY = float(os.environ.get("DAEASY_BLUR_KEEP_FACE_MAX_CY", "1") or "1")
+
+# 수동 얼굴 keep: 자동 추정(강사 cluster·크기)이 발표자/청중을 뒤바꾸는 경우를 위해,
+# 사진별로 '유지할 얼굴 중심 좌표'를 직접 지정한다. DAEASY_BLUR_FACE_MANUAL=1 이면
+# 모든 얼굴을 기본 블러로 두고, keep-point(파일명→[[cx,cy],...], 0~1 비율)에 가까운 얼굴만 유지.
+_FACE_MANUAL = os.environ.get("DAEASY_BLUR_FACE_MANUAL", "0") == "1"
+_KEEP_POINT_TOL = float(os.environ.get("DAEASY_BLUR_KEEP_POINT_TOL", "0.06") or "0.06")
+_KEEP_POINTS = {}
+_kp_path = os.environ.get("DAEASY_BLUR_KEEP_POINTS", "")
+if _kp_path and os.path.exists(_kp_path):
+    try:
+        _KEEP_POINTS = json.load(open(_kp_path, encoding="utf-8"))
+    except Exception:
+        _KEEP_POINTS = {}
+
+
+def _near_keep_point(fn, cx_r, cy_r):
+    for px, py in _KEEP_POINTS.get(fn, []):
+        if abs(cx_r - px) <= _KEEP_POINT_TOL and abs(cy_r - py) <= _KEEP_POINT_TOL:
+            return True
+    return False
+
 
 def _load(name):
     spec = importlib.util.spec_from_file_location(name, os.path.join(_HERE, name + ".py"))
@@ -74,17 +102,33 @@ def _feather_blur(out, orig, mask, kmin, kratio, feather_ratio):
     out[ry1:ry2, rx1:rx2] = (out[ry1:ry2, rx1:rx2] * (1 - alpha) + roi_b * alpha).astype(np.uint8)
 
 
-def collect_regions(face_rep, screen_rep, wifi_rep, fn):
+def collect_regions(face_rep, screen_rep, wifi_rep, fn, img_w=None, img_h=None):
     """세 모듈 리포트에서 한 이미지의 통합 region 목록 생성 (shape 정보 poly 포함)."""
     regions = []
     for f in face_rep.get(fn, {}).get("faces", []):
         role = f["role"]
         if role == "excluded":
             continue
-        regions.append({"type": "face", "bbox": [float(v) for v in f["bbox"]],
-                        "action": "keep" if role == "instructor_kept" else "blur",
+        bbox = [float(v) for v in f["bbox"]]
+        if _FACE_MANUAL:
+            action, reason = "blur", "manual_default_blur"   # 수동 모드: 기본 블러(강사 자동 keep 끔)
+        else:
+            action = "keep" if role == "instructor_kept" else "blur"
+            reason = role
+        cx_r = ((bbox[0] + bbox[2]) / 2) / img_w if img_w else None
+        cy_r = ((bbox[1] + bbox[3]) / 2) / img_h if img_h else None
+        # 수동 keep-point: 지정한 발표자/수상자 얼굴만 유지(사진별 직접 지정)
+        if cx_r is not None and cy_r is not None and _near_keep_point(fn, cx_r, cy_r):
+            action, reason = "keep", "manual_kept"
+        # (비수동) 큰 얼굴 keep 옵션 — 화면 하단(앞줄 청중)은 세로 가드로 제외
+        elif not _FACE_MANUAL and action == "blur" and _KEEP_FACE_MIN_H > 0 and img_h and \
+                (bbox[3] - bbox[1]) / img_h >= _KEEP_FACE_MIN_H and \
+                (cy_r is not None and cy_r <= _KEEP_FACE_MAX_CY):
+            action, reason = "keep", "foreground_kept"
+        regions.append({"type": "face", "bbox": bbox,
+                        "action": action,
                         "method": "blur", "confidence": float(f.get("score", 0.0)),
-                        "reason": role, "cluster": f.get("cluster")})
+                        "reason": reason, "cluster": f.get("cluster")})
     for r in screen_rep.get(fn, {}).get("regions", []):
         if r.get("bbox") is None:
             continue
@@ -164,7 +208,8 @@ def run(img_dir, out_dir, model_dir, do_wifi=True):
         orig = imread_u(os.path.join(img_dir, fn))
         if orig is None:
             continue
-        regions = collect_regions(face_rep, screen_rep, wifi_rep, fn)
+        regions = collect_regions(face_rep, screen_rep, wifi_rep, fn,
+                                  img_w=orig.shape[1], img_h=orig.shape[0])
         final = apply_regions(orig, regions)
 
         imwrite_u(os.path.join(img_orig, fn), orig)
@@ -207,7 +252,7 @@ def run(img_dir, out_dir, model_dir, do_wifi=True):
 _IMG_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
 
-def preprocess_images_inplace(images_dir, model_dir, do_wifi=True):
+def preprocess_images_inplace(images_dir, model_dir, do_wifi=True, do_screen=True):
     """prpub build 연결용: images_dir 안의 사진을 제자리에서 개인정보 블러.
       1) 원본을 images_dir/원본/ 로 보존
       2) 원본을 대상으로 face+screen+wifi region 산출(mask+feather)
@@ -228,11 +273,13 @@ def preprocess_images_inplace(images_dir, model_dir, do_wifi=True):
     work = tempfile.mkdtemp(prefix="daeasy_blur_")
     try:
         FB.run_event(orig_dir, os.path.join(work, "_face"), model_dir)
-        SB.run(orig_dir, os.path.join(work, "_screen"), model_dir)
+        if do_screen:
+            SB.run(orig_dir, os.path.join(work, "_screen"), model_dir)
         if do_wifi:
             WB.run(orig_dir, os.path.join(work, "_wifi"))
         face_rep = json.load(open(os.path.join(work, "_face", "블러리포트.json"), encoding="utf-8"))["images"]
-        screen_rep = json.load(open(os.path.join(work, "_screen", "화면블러리포트.json"), encoding="utf-8"))["images"]
+        screen_rep = (json.load(open(os.path.join(work, "_screen", "화면블러리포트.json"), encoding="utf-8"))["images"]
+                      if do_screen else {})
         wifi_rep = (json.load(open(os.path.join(work, "_wifi", "wifi블러리포트.json"), encoding="utf-8"))["images"]
                     if do_wifi else {})
         report = {"pipeline": "face+screen+wifi -> unified regions -> mask+feather blur -> instructor keep restore",
@@ -244,7 +291,8 @@ def preprocess_images_inplace(images_dir, model_dir, do_wifi=True):
                 skipped.append(n)
                 print(f"[blur][경고] {n} 디코드 불가 → 블러 생략(원본 보존됨, 최종물 사용 주의)")
                 continue
-            regions = collect_regions(face_rep, screen_rep, wifi_rep, n)
+            regions = collect_regions(face_rep, screen_rep, wifi_rep, n,
+                                      img_w=orig.shape[1], img_h=orig.shape[0])
             final = apply_regions(orig, regions)
             imwrite_u(os.path.join(images_dir, n), final)
             nblur += 1
@@ -272,8 +320,9 @@ def preprocess_images_inplace(images_dir, model_dir, do_wifi=True):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "preprocess":
-        wifi = not (len(sys.argv) > 4 and sys.argv[4] == "nowifi")
-        preprocess_images_inplace(sys.argv[2], sys.argv[3], do_wifi=wifi)
+        flags = sys.argv[4:]
+        preprocess_images_inplace(sys.argv[2], sys.argv[3],
+                                  do_wifi="nowifi" not in flags, do_screen="noscreen" not in flags)
     else:
         wifi = not (len(sys.argv) > 4 and sys.argv[4] == "nowifi")
         run(sys.argv[1], sys.argv[2], sys.argv[3], do_wifi=wifi)

@@ -39,6 +39,8 @@ def preprocess_images(images_dir: Path) -> None:
     args = [py, str(script), "preprocess", str(images_dir), models]
     if os.environ.get("DAEASY_BLUR_WIFI", "1") == "0":
         args.append("nowifi")
+    if os.environ.get("DAEASY_BLUR_SCREEN", "1") == "0":
+        args.append("noscreen")  # 이번 건처럼 노트북 화면을 일부러 가리지 않을 때
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", env=env)
     if r.stdout:

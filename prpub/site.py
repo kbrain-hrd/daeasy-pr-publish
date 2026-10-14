@@ -287,12 +287,40 @@ def _summary_of(md: str, limit: int = 200) -> str:
 # ---------------------------------------------------------------- 발행
 
 
+def _case_id_for_slug(ctx, slug: str) -> str | None:
+    """어드민 목록 페이지에서 slug 에 해당하는 case id 를 찾는다(갱신용).
+
+    사이트에는 slug→id HTTP 조회 API 가 없다(어드민 목록은 서버에서 Supabase 직접 조회).
+    그래서 로그인 세션으로 /admin/cases 를 열어, 행의 slug 텍스트와 편집 링크
+    (/admin/cases/<id>/edit)를 짝지어 id 를 꺼낸다."""
+    page = ctx.new_page()
+    try:
+        page.goto(f"{ADMIN_URL}?status=all", wait_until="networkidle")
+        return page.evaluate(
+            """(slug) => {
+                for (const tr of document.querySelectorAll('tr')) {
+                    const s = tr.querySelector('.font-mono');
+                    if (s && s.textContent.trim() === slug) {
+                        const a = tr.querySelector('a[href*="/admin/cases/"][href*="/edit"]');
+                        const m = a && a.getAttribute('href').match(/\\/admin\\/cases\\/([^/]+)\\/edit/);
+                        return m ? m[1] : null;
+                    }
+                }
+                return null;
+            }""",
+            slug,
+        )
+    finally:
+        page.close()
+
+
 def publish(slug_dir: Path, live: bool = False) -> None:
     """out/<slug>/post.md 를 사이트 교육후기로 만든다.
 
     기본은 status=draft — 어드민에서 눈으로 확인한 뒤 공개한다.
     `live=True` 면 곧바로 published 로 넣는다.
-    """
+    같은 slug 의 글이 이미 있으면 새로 만드는 대신 그 글을 갱신(덮어쓰기)한다 —
+    같은 접수 건을 다시 발행할 때 어드민에서 지우지 않아도 되게 한다."""
     if not SESSION.exists():
         raise SystemExit("로그인 세션이 없습니다. 먼저 `uv run prpub site-login` 을 실행하세요.")
 
@@ -343,13 +371,26 @@ def publish(slug_dir: Path, live: bool = False) -> None:
         if r.status == 401:
             raise SystemExit("로그인이 만료됐습니다. `uv run prpub site-login` 을 다시 실행하세요.")
         if r.status == 409:
-            raise SystemExit(f"같은 slug 의 글이 이미 있습니다: {payload['slug']}")
-        if not r.ok:
+            # 같은 slug 글이 이미 있으면 삭제 없이 그 글을 갱신한다.
+            cid = _case_id_for_slug(ctx, payload["slug"])
+            if not cid:
+                raise SystemExit(
+                    f"같은 slug 글({payload['slug']})이 있으나 id 를 찾지 못해 갱신하지 못했습니다. "
+                    f"어드민에서 확인하세요.")
+            ru = req.fetch(f"{CASES_API}/{cid}", method="PATCH", data=payload)
+            if ru.status == 401:
+                raise SystemExit("로그인이 만료됐습니다. `uv run prpub site-login` 을 다시 실행하세요.")
+            if not ru.ok:
+                raise SystemExit(f"갱신 실패 ({ru.status}): {ru.text()[:300]}")
+            updated = True
+        elif not r.ok:
             raise SystemExit(f"발행 실패 ({r.status}): {r.text()[:300]}")
+        else:
+            updated = False
 
         ctx.close()
 
-    state = "공개" if live else "임시저장(draft)"
+    state = ("공개" if live else "임시저장(draft)") + (" · 기존 글 갱신" if updated else " · 신규")
     print(f"사이트에 올렸습니다 — {state}")
     print(f"  제목: {title}")
     print(f"  확인: {ADMIN_URL}")
