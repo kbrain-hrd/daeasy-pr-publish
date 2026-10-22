@@ -127,7 +127,7 @@ def cmd_site(args) -> None:
     d = ROOT / "out" / args.folder
     if not (d / "post.md").exists():
         raise SystemExit(f"{d.name}/post.md 가 없습니다.")
-    publish(d, live=args.live)
+    publish(d, live=args.live, update=args.update)
 
 
 def main() -> None:
@@ -152,6 +152,8 @@ def main() -> None:
     s = sub.add_parser("site", help="out/<폴더>/post.md 를 daeasy 사이트 교육후기로 올린다")
     s.add_argument("folder")
     s.add_argument("--live", action="store_true", help="곧바로 공개한다 (없으면 draft 로 올린다)")
+    s.add_argument("--update", action="store_true",
+                   help="공개 중인 글을 덮어쓴다 (--live 와 함께. 없으면 공개 글 갱신을 거부한다)")
     s.set_defaults(fn=cmd_site)
     args = ap.parse_args()
     args.fn(args)

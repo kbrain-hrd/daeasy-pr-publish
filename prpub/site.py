@@ -347,12 +347,12 @@ def _summary_of(md: str, limit: int = 200) -> str:
 # ---------------------------------------------------------------- 발행
 
 
-def _case_id_for_slug(ctx, slug: str) -> str | None:
-    """어드민 목록 페이지에서 slug 에 해당하는 case id 를 찾는다(갱신용).
+def _case_for_slug(ctx, slug: str) -> dict | None:
+    """어드민 목록 페이지에서 slug 에 해당하는 case 의 id 와 상태 배지 글자를 찾는다(갱신용).
 
     사이트에는 slug→id HTTP 조회 API 가 없다(어드민 목록은 서버에서 Supabase 직접 조회).
     그래서 로그인 세션으로 /admin/cases 를 열어, 행의 slug 텍스트와 편집 링크
-    (/admin/cases/<id>/edit)를 짝지어 id 를 꺼낸다."""
+    (/admin/cases/<id>/edit)를 짝지어 id 를 꺼낸다. 상태는 같은 행의 배지('공개'/'임시저장')."""
     page = ctx.new_page()
     try:
         page.goto(f"{ADMIN_URL}?status=all", wait_until="networkidle")
@@ -363,7 +363,8 @@ def _case_id_for_slug(ctx, slug: str) -> str | None:
                     if (s && s.textContent.trim() === slug) {
                         const a = tr.querySelector('a[href*="/admin/cases/"][href*="/edit"]');
                         const m = a && a.getAttribute('href').match(/\\/admin\\/cases\\/([^/]+)\\/edit/);
-                        return m ? m[1] : null;
+                        const b = tr.querySelector('span.rounded-full');
+                        return {id: m ? m[1] : null, status: b ? b.textContent.trim() : null};
                     }
                 }
                 return null;
@@ -374,13 +375,40 @@ def _case_id_for_slug(ctx, slug: str) -> str | None:
         page.close()
 
 
-def publish(slug_dir: Path, live: bool = False) -> None:
+def _case_id_for_slug(ctx, slug: str) -> str | None:
+    return (_case_for_slug(ctx, slug) or {}).get("id")
+
+
+# 어드민 목록의 상태 배지 글자 (사이트 frontend/src/lib/admin-content.ts CONTENT_STATUS_LABEL)
+STATUS_LABEL = {"임시저장": "draft", "공개": "published"}
+
+
+def _update_refusal(status: str | None, live: bool, update: bool) -> str | None:
+    """기존 글을 덮어쓰면 안 되는 사유. 없으면 None.
+
+    임시저장 글 갱신(draft→live 공개 포함)은 그대로 둔다. 공개 글은 `--live --update` 로만 갱신한다 —
+    사이트 수정 API 가 보낸 값으로 통째로 바꿔서, --live 가 없으면 임시저장으로 내려가고
+    있어도 게시일이 오늘로·교육과정 연결이 비워진다. 상태를 모르면 덮어쓰지 않는다."""
+    if status == "draft":
+        return None
+    if status == "published":
+        if not live:
+            return "공개 중인 글입니다 — --live 없이 덮어쓰면 임시저장으로 내려갑니다."
+        if not update:
+            return ("공개 중인 글입니다 — 공개 글 갱신은 --update 를 함께 붙여야 합니다 "
+                    "(게시일이 오늘로 바뀌고 교육과정 연결이 비워집니다).")
+        return None
+    return f"기존 글의 공개 상태를 확인하지 못했습니다(상태: {status or '읽지 못함'}) — 덮어쓰지 않습니다."
+
+
+def publish(slug_dir: Path, live: bool = False, update: bool = False) -> None:
     """out/<slug>/post.md 를 사이트 교육후기로 만든다.
 
     기본은 status=draft — 어드민에서 눈으로 확인한 뒤 공개한다.
     `live=True` 면 곧바로 published 로 넣는다.
     같은 slug 의 글이 이미 있으면 새로 만드는 대신 그 글을 갱신(덮어쓰기)한다 —
-    같은 접수 건을 다시 발행할 때 어드민에서 지우지 않아도 되게 한다."""
+    같은 접수 건을 다시 발행할 때 어드민에서 지우지 않아도 되게 한다.
+    단 공개 중인 글은 `live=True, update=True` 일 때만 갱신한다 (_update_refusal)."""
     if not SESSION.exists():
         raise SystemExit("로그인 세션이 없습니다. 먼저 `uv run prpub site-login` 을 실행하세요.")
 
@@ -432,11 +460,15 @@ def publish(slug_dir: Path, live: bool = False) -> None:
             raise SystemExit("로그인이 만료됐습니다. `uv run prpub site-login` 을 다시 실행하세요.")
         if r.status == 409:
             # 같은 slug 글이 이미 있으면 삭제 없이 그 글을 갱신한다.
-            cid = _case_id_for_slug(ctx, payload["slug"])
+            row = _case_for_slug(ctx, payload["slug"]) or {}
+            cid = row.get("id")
             if not cid:
                 raise SystemExit(
                     f"같은 slug 글({payload['slug']})이 있으나 id 를 찾지 못해 갱신하지 못했습니다. "
                     f"어드민에서 확인하세요.")
+            refusal = _update_refusal(STATUS_LABEL.get(row.get("status") or ""), live, update)
+            if refusal:
+                raise SystemExit(f"기존 글({payload['slug']})을 갱신하지 않았습니다: {refusal} 어드민에서 확인하세요.")
             ru = req.fetch(f"{CASES_API}/{cid}", method="PATCH", data=payload)
             if ru.status == 401:
                 raise SystemExit("로그인이 만료됐습니다. `uv run prpub site-login` 을 다시 실행하세요.")
