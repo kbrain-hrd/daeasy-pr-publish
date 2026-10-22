@@ -69,6 +69,15 @@ def login(timeout_min: int = 10) -> bool:
 
 _QUOTE = re.compile(r"^::인용\s*(.+?)\s*::$")
 _STATS = re.compile(r"^::수치\s*(.+?)\s*::$")
+# `::표 머리1|머리2;;행1-1|행1-2;;행2-1|행2-2::` — 표. 행 구분 `;;`, 열 구분 `|`, 첫 행이 머리.
+# sanitize 가 table/thead/tbody/tr/th/td 를 허용하고 prose 가 표를 꾸며 프론트 변경 없이 먹는다.
+_TABLE = re.compile(r"^::표\s*(.+?)\s*::$")
+# `::카드 제목1|설명1;;제목2|설명2::` — 카드 그리드(2열, 홀수면 마지막 카드 전체폭 → 대칭).
+# `::카드B …::` 는 B 시안(흰 카드+상단 액센트). globals.css 의 .edu-cards / .edu-cards-b 로 꾸민다.
+_CARDS = re.compile(r"^::카드(B)?\s*(.+?)\s*::$")
+# `::단계 제목1|설명1;;제목2|설명2::` — 단계 플로우(번호 배지+제목+설명 카드를 화살표로 연결).
+# globals.css 의 .edu-flow 로 꾸민다. 과정 흐름·프로세스 표현용.
+_FLOW = re.compile(r"^::단계\s*(.+?)\s*::$")
 # `::맺음 문장::` — 글 끝의 DAEASY 공식 마무리 멘트. 본문과 구분되게 인용구 박스로,
 # 위 여백을 더 주고(mt-10) 글씨를 키워(text-lg) 렌더한다. sanitize 가 class 는 허용하고
 # mt-10·text-lg 는 사이트 번들에 이미 있는 클래스라 프론트 변경 없이 먹는다.
@@ -160,9 +169,16 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
 
         m = _CLOSING.match(s)
         if m:
-            # 맺음(공식 마무리 멘트) — 인용구 박스로, 위 여백 더(mt-10)·글씨 키워(text-lg).
+            # 맺음(공식 마무리 멘트) — 박스/인용구 없이, 가운데 정렬 큰 굵은 글씨로 강조한다.
+            # 상단에 액센트 라벨(kicker)을 얹어 눈에 띄게. 본문에 ` // ` 를 넣은 자리에서 줄바꿈(<br>).
+            # blockquote 는 prose 가 italic·따옴표를 강제하므로 안 쓰고, 이미 빌드된 유틸 클래스만
+            # 쓴다 (sanitize 가 class·<br> 는 보존).
+            inner = "<br>".join(_inline(p.strip()) for p in m.group(1).split("//"))
             body.append(
-                f'<blockquote class="mt-10"><p class="text-lg">{_inline(m.group(1))}</p></blockquote>'
+                f'<div class="closing-note mt-10 text-center max-w-2xl mx-auto">'
+                f'<div class="text-accent text-sm font-semibold uppercase tracking-wide">— DAEASY 제안 —</div>'
+                f'<p class="mt-3 text-lg font-bold leading-snug">{inner}</p>'
+                f'</div>'
             )
             continue
 
@@ -185,6 +201,50 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
                 f"<li>{_inline(x.strip())}</li>" for x in m.group(1).split("|") if x.strip()
             )
             body.append(f"<ul>{items}</ul>")
+            continue
+
+        m = _TABLE.match(s)
+        if m:
+            rows = [r for r in (r.strip() for r in m.group(1).split(";;")) if r]
+            cells = [[c.strip() for c in r.split("|")] for r in rows]
+            if cells:
+                head, rest = cells[0], cells[1:]
+                out = "<table><thead><tr>" + "".join(
+                    f"<th>{_inline(c)}</th>" for c in head) + "</tr></thead><tbody>"
+                for r in rest:
+                    out += "<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in r) + "</tr>"
+                body.append(out + "</tbody></table>")
+            continue
+
+        m = _CARDS.match(s)
+        if m:
+            cls = "edu-cards-b" if m.group(1) else "edu-cards"
+            lis = ""
+            for it in (x.strip() for x in m.group(2).split(";;")):
+                if not it:
+                    continue
+                parts = [p.strip() for p in it.split("|")]
+                title = parts[0] if parts else ""
+                desc = parts[1] if len(parts) > 1 else ""
+                lis += (f"<li><h3>{_inline(title)}</h3>"
+                        + (f"<p>{_inline(desc)}</p>" if desc else "")
+                        + "</li>")
+            body.append(f'<ol class="{cls}">{lis}</ol>')
+            continue
+
+        m = _FLOW.match(s)
+        if m:
+            lis = ""
+            for it in (x.strip() for x in m.group(1).split(";;")):
+                if not it:
+                    continue
+                parts = [p.strip() for p in it.split("|")]
+                title = parts[0] if parts else ""
+                desc = parts[1] if len(parts) > 1 else ""
+                lis += (f"<li><h3>{_inline(title)}</h3>"
+                        + (f"<p>{_inline(desc)}</p>" if desc else "")
+                        + "</li>")
+            body.append(f'<ol class="edu-flow">{lis}</ol>')
             continue
 
         m = _OUTPUT.match(s)
@@ -387,6 +447,13 @@ def publish(slug_dir: Path, live: bool = False) -> None:
             raise SystemExit(f"발행 실패 ({r.status}): {r.text()[:300]}")
         else:
             updated = False
+            try:
+                body_json = r.json()
+                cid = body_json.get("id") or (body_json.get("data") or {}).get("id")
+            except Exception:
+                cid = None
+            if not cid:
+                cid = _case_id_for_slug(ctx, payload["slug"])
 
         ctx.close()
 
@@ -394,5 +461,8 @@ def publish(slug_dir: Path, live: bool = False) -> None:
     print(f"사이트에 올렸습니다 — {state}")
     print(f"  제목: {title}")
     print(f"  확인: {ADMIN_URL}")
+    if cid:
+        # draft 도 볼 수 있는 사이트 미리보기 주소 — 팀 공유용
+        print(f"  미리보기: {SITE}/cases/preview/{cid}")
     if not live:
         print("  공개하려면 어드민에서 상태를 바꾸거나 --live 로 다시 실행하세요.")
