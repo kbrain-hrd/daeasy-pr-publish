@@ -247,8 +247,9 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
                 img, q, a = parts
                 url = upload(img)
                 pic = f'<img class="qa-avatar" src="{html.escape(url)}" alt="">' if url else ""
-                body.append(f'<div class="edu-qa">{pic}<p class="qa-q">{_inline(q)}</p>'
-                            f'<p class="qa-a">{_inline(a)}</p></div>')
+                # 답변은 말풍선 묶음 밖의 일반 문단으로 낸다 — 사이트 CSS 변경 없이 왼쪽 선을 없앤다 (2026-11-20)
+                body.append(f'<div class="edu-qa">{pic}<p class="qa-q">{_inline(q)}</p></div>'
+                            f'<p>{_inline(a)}</p>')
                 continue
 
         m = _ROWS.match(s)
