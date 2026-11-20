@@ -69,6 +69,20 @@ def login(timeout_min: int = 10) -> bool:
 
 _QUOTE = re.compile(r"^::인용\s*(.+?)\s*::$")
 _STATS = re.compile(r"^::수치\s*(.+?)\s*::$")
+# `::표 머리1|머리2;;행1-1|행1-2;;행2-1|행2-2::` — 표. 행 구분 `;;`, 열 구분 `|`, 첫 행이 머리.
+# sanitize 가 table/thead/tbody/tr/th/td 를 허용하고 prose 가 표를 꾸며 프론트 변경 없이 먹는다.
+_TABLE = re.compile(r"^::표\s*(.+?)\s*::$")
+# `::카드 제목1|설명1;;제목2|설명2::` — 카드 그리드(2열, 홀수면 마지막 카드 전체폭 → 대칭).
+# `::카드B …::` 는 B 시안(흰 카드+상단 액센트). globals.css 의 .edu-cards / .edu-cards-b 로 꾸민다.
+_CARDS = re.compile(r"^::카드(B)?\s*(.+?)\s*::$")
+# `::단계 제목1|설명1;;제목2|설명2::` — 단계 플로우(번호 배지+제목+설명 카드를 화살표로 연결).
+# globals.css 의 .edu-flow 로 꾸민다. 과정 흐름·프로세스 표현용.
+# `::단계B …::` 는 B 시안(번호 점을 선으로 잇는 가로 진행 바, 모바일 세로). 제목의 `앞말 · 뒷말` 은
+# 앞말을 작은 라벨(예: 1일차)로, 뒷말을 제목으로 나눈다. globals.css 의 .edu-steps 로 꾸민다.
+_FLOW = re.compile(r"^::단계(B)?\s*(.+?)\s*::$")
+# `::단계C 라벨 · 제목|항목1, 항목2;;…::` — 단계 목록(줄마다 큰 번호 | 라벨·제목 | 항목 태그).
+# globals.css 의 .edu-rows 로 꾸민다. 항목은 `, ` 로 나눠 태그(span)로 낸다.
+_ROWS = re.compile(r"^::단계C\s*(.+?)\s*::$")
 # `::맺음 문장::` — 글 끝의 DAEASY 공식 마무리 멘트. 본문과 구분되게 인용구 박스로,
 # 위 여백을 더 주고(mt-10) 글씨를 키워(text-lg) 렌더한다. sanitize 가 class 는 허용하고
 # mt-10·text-lg 는 사이트 번들에 이미 있는 클래스라 프론트 변경 없이 먹는다.
@@ -160,9 +174,16 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
 
         m = _CLOSING.match(s)
         if m:
-            # 맺음(공식 마무리 멘트) — 인용구 박스로, 위 여백 더(mt-10)·글씨 키워(text-lg).
+            # 맺음(공식 마무리 멘트) — 박스/인용구 없이, 가운데 정렬 큰 굵은 글씨로 강조한다.
+            # 상단에 액센트 라벨(kicker)을 얹어 눈에 띄게. 본문에 ` // ` 를 넣은 자리에서 줄바꿈(<br>).
+            # blockquote 는 prose 가 italic·따옴표를 강제하므로 안 쓰고, 이미 빌드된 유틸 클래스만
+            # 쓴다 (sanitize 가 class·<br> 는 보존).
+            inner = "<br>".join(_inline(p.strip()) for p in m.group(1).split("//"))
             body.append(
-                f'<blockquote class="mt-10"><p class="text-lg">{_inline(m.group(1))}</p></blockquote>'
+                f'<div class="closing-note mt-10 text-center max-w-2xl mx-auto">'
+                f'<div class="text-accent text-sm font-semibold uppercase tracking-wide">— DAEASY 제안 —</div>'
+                f'<p class="mt-3 text-lg font-bold leading-snug">{inner}</p>'
+                f'</div>'
             )
             continue
 
@@ -185,6 +206,71 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
                 f"<li>{_inline(x.strip())}</li>" for x in m.group(1).split("|") if x.strip()
             )
             body.append(f"<ul>{items}</ul>")
+            continue
+
+        m = _TABLE.match(s)
+        if m:
+            rows = [r for r in (r.strip() for r in m.group(1).split(";;")) if r]
+            cells = [[c.strip() for c in r.split("|")] for r in rows]
+            if cells:
+                head, rest = cells[0], cells[1:]
+                out = "<table><thead><tr>" + "".join(
+                    f"<th>{_inline(c)}</th>" for c in head) + "</tr></thead><tbody>"
+                for r in rest:
+                    out += "<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in r) + "</tr>"
+                body.append(out + "</tbody></table>")
+            continue
+
+        m = _CARDS.match(s)
+        if m:
+            cls = "edu-cards-b" if m.group(1) else "edu-cards"
+            lis = ""
+            for it in (x.strip() for x in m.group(2).split(";;")):
+                if not it:
+                    continue
+                parts = [p.strip() for p in it.split("|")]
+                title = parts[0] if parts else ""
+                desc = parts[1] if len(parts) > 1 else ""
+                lis += (f"<li><h3>{_inline(title)}</h3>"
+                        + (f"<p>{_inline(desc)}</p>" if desc else "")
+                        + "</li>")
+            body.append(f'<ol class="{cls}">{lis}</ol>')
+            continue
+
+        m = _ROWS.match(s)
+        if m:
+            lis = ""
+            for it in (x.strip() for x in m.group(1).split(";;")):
+                if not it:
+                    continue
+                parts = [p.strip() for p in it.split("|")]
+                label, _, title = parts[0].rpartition(" · ")
+                tags = [t.strip() for t in (parts[1] if len(parts) > 1 else "").split(", ") if t.strip()]
+                lis += ("<li><h3>" + (f'<span class="st-label">{_inline(label)}</span>' if label else "")
+                        + f"{_inline(title)}</h3>"
+                        + ("<p>" + "".join(f"<span>{_inline(t)}</span>" for t in tags) + "</p>" if tags else "")
+                        + "</li>")
+            body.append(f'<ol class="edu-rows">{lis}</ol>')
+            continue
+
+        m = _FLOW.match(s)
+        if m:
+            lis = ""
+            for it in (x.strip() for x in m.group(2).split(";;")):
+                if not it:
+                    continue
+                parts = [p.strip() for p in it.split("|")]
+                title = parts[0] if parts else ""
+                desc = parts[1] if len(parts) > 1 else ""
+                label = ""
+                if m.group(1) and " · " in title:
+                    label, title = (x.strip() for x in title.split(" · ", 1))
+                lis += ("<li>" + (f'<span class="st-label">{_inline(label)}</span>' if label else "")
+                        + f"<h3>{_inline(title)}</h3>"
+                        + (f"<p>{_inline(desc)}</p>" if desc else "")
+                        + "</li>")
+            cls = "edu-steps" if m.group(1) else "edu-flow"
+            body.append(f'<ol class="{cls}">{lis}</ol>')
             continue
 
         m = _OUTPUT.match(s)
@@ -287,12 +373,12 @@ def _summary_of(md: str, limit: int = 200) -> str:
 # ---------------------------------------------------------------- 발행
 
 
-def _case_id_for_slug(ctx, slug: str) -> str | None:
-    """어드민 목록 페이지에서 slug 에 해당하는 case id 를 찾는다(갱신용).
+def _case_for_slug(ctx, slug: str) -> dict | None:
+    """어드민 목록 페이지에서 slug 에 해당하는 case 의 id 와 상태 배지 글자를 찾는다(갱신용).
 
     사이트에는 slug→id HTTP 조회 API 가 없다(어드민 목록은 서버에서 Supabase 직접 조회).
     그래서 로그인 세션으로 /admin/cases 를 열어, 행의 slug 텍스트와 편집 링크
-    (/admin/cases/<id>/edit)를 짝지어 id 를 꺼낸다."""
+    (/admin/cases/<id>/edit)를 짝지어 id 를 꺼낸다. 상태는 같은 행의 배지('공개'/'임시저장')."""
     page = ctx.new_page()
     try:
         page.goto(f"{ADMIN_URL}?status=all", wait_until="networkidle")
@@ -303,7 +389,8 @@ def _case_id_for_slug(ctx, slug: str) -> str | None:
                     if (s && s.textContent.trim() === slug) {
                         const a = tr.querySelector('a[href*="/admin/cases/"][href*="/edit"]');
                         const m = a && a.getAttribute('href').match(/\\/admin\\/cases\\/([^/]+)\\/edit/);
-                        return m ? m[1] : null;
+                        const b = tr.querySelector('span.rounded-full');
+                        return {id: m ? m[1] : null, status: b ? b.textContent.trim() : null};
                     }
                 }
                 return null;
@@ -314,13 +401,40 @@ def _case_id_for_slug(ctx, slug: str) -> str | None:
         page.close()
 
 
-def publish(slug_dir: Path, live: bool = False) -> None:
+def _case_id_for_slug(ctx, slug: str) -> str | None:
+    return (_case_for_slug(ctx, slug) or {}).get("id")
+
+
+# 어드민 목록의 상태 배지 글자 (사이트 frontend/src/lib/admin-content.ts CONTENT_STATUS_LABEL)
+STATUS_LABEL = {"임시저장": "draft", "공개": "published"}
+
+
+def _update_refusal(status: str | None, live: bool, update: bool) -> str | None:
+    """기존 글을 덮어쓰면 안 되는 사유. 없으면 None.
+
+    임시저장 글 갱신(draft→live 공개 포함)은 그대로 둔다. 공개 글은 `--live --update` 로만 갱신한다 —
+    사이트 수정 API 가 보낸 값으로 통째로 바꿔서, --live 가 없으면 임시저장으로 내려가고
+    있어도 게시일이 오늘로·교육과정 연결이 비워진다. 상태를 모르면 덮어쓰지 않는다."""
+    if status == "draft":
+        return None
+    if status == "published":
+        if not live:
+            return "공개 중인 글입니다 — --live 없이 덮어쓰면 임시저장으로 내려갑니다."
+        if not update:
+            return ("공개 중인 글입니다 — 공개 글 갱신은 --update 를 함께 붙여야 합니다 "
+                    "(게시일이 오늘로 바뀌고 교육과정 연결이 비워집니다).")
+        return None
+    return f"기존 글의 공개 상태를 확인하지 못했습니다(상태: {status or '읽지 못함'}) — 덮어쓰지 않습니다."
+
+
+def publish(slug_dir: Path, live: bool = False, update: bool = False) -> None:
     """out/<slug>/post.md 를 사이트 교육후기로 만든다.
 
     기본은 status=draft — 어드민에서 눈으로 확인한 뒤 공개한다.
     `live=True` 면 곧바로 published 로 넣는다.
     같은 slug 의 글이 이미 있으면 새로 만드는 대신 그 글을 갱신(덮어쓰기)한다 —
-    같은 접수 건을 다시 발행할 때 어드민에서 지우지 않아도 되게 한다."""
+    같은 접수 건을 다시 발행할 때 어드민에서 지우지 않아도 되게 한다.
+    단 공개 중인 글은 `live=True, update=True` 일 때만 갱신한다 (_update_refusal)."""
     if not SESSION.exists():
         raise SystemExit("로그인 세션이 없습니다. 먼저 `uv run prpub site-login` 을 실행하세요.")
 
@@ -372,11 +486,15 @@ def publish(slug_dir: Path, live: bool = False) -> None:
             raise SystemExit("로그인이 만료됐습니다. `uv run prpub site-login` 을 다시 실행하세요.")
         if r.status == 409:
             # 같은 slug 글이 이미 있으면 삭제 없이 그 글을 갱신한다.
-            cid = _case_id_for_slug(ctx, payload["slug"])
+            row = _case_for_slug(ctx, payload["slug"]) or {}
+            cid = row.get("id")
             if not cid:
                 raise SystemExit(
                     f"같은 slug 글({payload['slug']})이 있으나 id 를 찾지 못해 갱신하지 못했습니다. "
                     f"어드민에서 확인하세요.")
+            refusal = _update_refusal(STATUS_LABEL.get(row.get("status") or ""), live, update)
+            if refusal:
+                raise SystemExit(f"기존 글({payload['slug']})을 갱신하지 않았습니다: {refusal} 어드민에서 확인하세요.")
             ru = req.fetch(f"{CASES_API}/{cid}", method="PATCH", data=payload)
             if ru.status == 401:
                 raise SystemExit("로그인이 만료됐습니다. `uv run prpub site-login` 을 다시 실행하세요.")
@@ -387,6 +505,13 @@ def publish(slug_dir: Path, live: bool = False) -> None:
             raise SystemExit(f"발행 실패 ({r.status}): {r.text()[:300]}")
         else:
             updated = False
+            try:
+                body_json = r.json()
+                cid = body_json.get("id") or (body_json.get("data") or {}).get("id")
+            except Exception:
+                cid = None
+            if not cid:
+                cid = _case_id_for_slug(ctx, payload["slug"])
 
         ctx.close()
 
@@ -394,5 +519,8 @@ def publish(slug_dir: Path, live: bool = False) -> None:
     print(f"사이트에 올렸습니다 — {state}")
     print(f"  제목: {title}")
     print(f"  확인: {ADMIN_URL}")
+    if cid:
+        # draft 도 볼 수 있는 사이트 미리보기 주소 — 팀 공유용
+        print(f"  미리보기: {SITE}/cases/preview/{cid}")
     if not live:
         print("  공개하려면 어드민에서 상태를 바꾸거나 --live 로 다시 실행하세요.")
