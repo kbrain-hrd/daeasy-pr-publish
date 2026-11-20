@@ -80,6 +80,9 @@ _CARDS = re.compile(r"^::카드(B)?\s*(.+?)\s*::$")
 # `::단계B …::` 는 B 시안(번호 점을 선으로 잇는 가로 진행 바, 모바일 세로). 제목의 `앞말 · 뒷말` 은
 # 앞말을 작은 라벨(예: 1일차)로, 뒷말을 제목으로 나눈다. globals.css 의 .edu-steps 로 꾸민다.
 _FLOW = re.compile(r"^::단계(B)?\s*(.+?)\s*::$")
+# `::단계C 라벨 · 제목|항목1, 항목2;;…::` — 단계 목록(줄마다 큰 번호 | 라벨·제목 | 항목 태그).
+# globals.css 의 .edu-rows 로 꾸민다. 항목은 `, ` 로 나눠 태그(span)로 낸다.
+_ROWS = re.compile(r"^::단계C\s*(.+?)\s*::$")
 # `::맺음 문장::` — 글 끝의 DAEASY 공식 마무리 멘트. 본문과 구분되게 인용구 박스로,
 # 위 여백을 더 주고(mt-10) 글씨를 키워(text-lg) 렌더한다. sanitize 가 class 는 허용하고
 # mt-10·text-lg 는 사이트 번들에 이미 있는 클래스라 프론트 변경 없이 먹는다.
@@ -232,6 +235,22 @@ def to_html(md: str, upload) -> tuple[str, str | None]:
                         + (f"<p>{_inline(desc)}</p>" if desc else "")
                         + "</li>")
             body.append(f'<ol class="{cls}">{lis}</ol>')
+            continue
+
+        m = _ROWS.match(s)
+        if m:
+            lis = ""
+            for it in (x.strip() for x in m.group(1).split(";;")):
+                if not it:
+                    continue
+                parts = [p.strip() for p in it.split("|")]
+                label, _, title = parts[0].rpartition(" · ")
+                tags = [t.strip() for t in (parts[1] if len(parts) > 1 else "").split(", ") if t.strip()]
+                lis += ("<li><h3>" + (f'<span class="st-label">{_inline(label)}</span>' if label else "")
+                        + f"{_inline(title)}</h3>"
+                        + ("<p>" + "".join(f"<span>{_inline(t)}</span>" for t in tags) + "</p>" if tags else "")
+                        + "</li>")
+            body.append(f'<ol class="edu-rows">{lis}</ol>')
             continue
 
         m = _FLOW.match(s)
